@@ -1,8 +1,8 @@
-use crate::op_codes::OpCodes;
+use crate::frontend::interpretation::{literal::Literal, op_codes::OpCodes};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Line {
-    pub line: usize,
+    pub line: u32,
     start: usize,
     end: Option<usize>,
 }
@@ -10,7 +10,7 @@ pub struct Line {
 #[derive(Debug)]
 pub struct Chunk {
     pub code: Vec<OpCodes>,
-    pub constants: Vec<f64>,
+    pub constants: Vec<Literal>,
     pub lines: Vec<Line>,
 }
 
@@ -23,7 +23,7 @@ impl Chunk {
         }
     }
 
-    pub fn write(&mut self, op_code: OpCodes, line: usize) {
+    pub fn write(&mut self, op_code: OpCodes, line: u32) {
         self.code.push(op_code);
         if let Some(index) = self.lines.last() {
             if line > index.line {
@@ -47,7 +47,7 @@ impl Chunk {
         }
     }
 
-    pub fn add_constant(&mut self, constant: f64, line: usize) {
+    pub fn add_constant(&mut self, constant: Literal, line: u32) {
         self.constants.push(constant);
         self.write(OpCodes::Constant(self.constants.len() - 1), line);
     }
@@ -56,7 +56,7 @@ impl Chunk {
         self.lines.iter().find(|&line| {
             if let Some(end) = line.end {
                 return index >= line.start && index < end;
-            } 
+            }
             index >= line.start
         })
     }

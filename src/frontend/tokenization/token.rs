@@ -1,4 +1,4 @@
-use crate::{location::Span, tokenkind::TokenKind};
+use super::{span::Span, tokenkind::TokenKind};
 
 pub struct Token<'a> {
     pub kind: TokenKind,
@@ -17,6 +17,14 @@ impl<'a> Token<'a> {
             kind: TokenKind::EOF,
             span,
             lexeme: String::from(""),
+        }
+    }
+
+    pub fn dup(&self) -> Self {
+        Self {
+            kind: self.kind,
+            span: self.span.dup(),
+            lexeme: self.lexeme.to_string(),
         }
     }
 }

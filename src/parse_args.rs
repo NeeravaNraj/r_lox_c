@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::repl::Repl;
+use crate::{repl::Repl, runner::Runner};
 
 const HELP: &str = r#"
 USAGE: lox [OPTIONS]* [FILE] 
@@ -26,6 +26,8 @@ impl ParseArgs {
             for arg in self.args.iter() {
                 if let Some(path) = self.parse_option(arg) {
                     let path = Path::new(path);
+                    let mut runner = Runner::new(path);
+                    runner.run();
                 }
             }
         }

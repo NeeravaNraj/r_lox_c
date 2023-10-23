@@ -3,7 +3,8 @@ use std::fmt::Display;
 #[derive(Debug, Clone, Copy)]
 pub enum OpCodes {
     Return,
-    Constant(usize),
+    //       index
+    Constant(usize), 
     Negate,
     Add,
     Subtract,

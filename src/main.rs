@@ -1,17 +1,10 @@
-mod chunk;
-mod debug;
-mod interpret_result;
-mod op_codes;
+mod frontend;
+mod backend;
+mod utils;
+mod common;
 mod repl;
-mod vm;
 mod parse_args;
 mod runner;
-mod lexer;
-mod comiler;
-mod logger;
-mod token;
-mod tokenkind;
-mod location;
 mod prelude;
 
 use parse_args::ParseArgs;

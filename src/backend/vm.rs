@@ -1,14 +1,17 @@
 use crate::{
-    chunk::Chunk, comiler::Compiler, debug::Debugger, interpret_result::InterpretResult,
-    op_codes::OpCodes,
+    common::chunk::Chunk,
+    error,
+    frontend::{
+        comiler::Compiler,
+        interpretation::{interpret_result::InterpretResult, literal::Literal, op_codes::OpCodes},
+    },
+    utils::debug::Debugger,
 };
-
-const STACK_MAX: usize = 256;
 
 pub struct Vm {
     debugger: Debugger,
     debug_trace: bool,
-    stack: Vec<f64>,
+    stack: Vec<Literal>,
     ip: usize,
 }
 
@@ -23,9 +26,13 @@ impl Vm {
     }
 
     pub fn interpret(&mut self, file_path: &str, source: String) -> InterpretResult {
-        let compiler = Compiler::new(file_path, source).compile();
-        // self.run(chunk)
-        return InterpretResult::Ok;
+        let mut chunk = Chunk::new();
+        let mut compiler = Compiler::new(file_path, source);
+        let Ok(()) = compiler.compile(&mut chunk) else {
+            error!("Couldn't run file due to error(s).");
+            return InterpretResult::CompileError;
+        };
+        return self.run(&chunk);
     }
 
     pub fn run(&mut self, chunk: &Chunk) -> InterpretResult {
@@ -36,7 +43,13 @@ impl Vm {
                 {
                     let rhs = self.stack.pop().unwrap();
                     let lhs = self.stack.pop().unwrap();
-                    self.stack.push(lhs $op rhs);
+                    match (lhs $op rhs) {
+                        Ok(value) => self.stack.push(value),
+                        Err(err) => {
+                            error!("{err}");
+                            return InterpretResult::RuntimeError
+                        }
+                    };
                 }
             };
         }
@@ -60,7 +73,7 @@ impl Vm {
                 }
                 OpCodes::Negate => {
                     if let Some(c) = self.stack.pop() {
-                        self.stack.push(-c);
+                        self.stack.push(c.negate());
                     }
                 }
                 OpCodes::Add => vm_binary_op!(+),
@@ -83,14 +96,17 @@ impl Vm {
         }
     }
 
+    #[allow(dead_code)]
     fn reset_stack(&mut self) {
         self.stack.clear()
     }
 
+    #[allow(dead_code)]
     pub fn set_debug_mode(&mut self) {
         self.debug_trace = true
     }
 
+    #[allow(dead_code)]
     pub fn disable_debug_mode(&mut self) {
         self.debug_trace = false
     }

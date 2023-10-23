@@ -1,6 +1,9 @@
 use std::io::{stdout, Stdout, Write};
 
-use crate::{chunk::Chunk, op_codes::OpCodes};
+use crate::{
+    common::chunk::Chunk,
+    frontend::interpretation::op_codes::OpCodes
+};
 
 pub struct Debugger {
     name: String,

@@ -38,7 +38,9 @@ pub enum TokenKind {
     // Literals.
     Identifier,
     String,
-    Number,
+    FormatString,
+    Int,
+    Float,
 
     // Keywords,
     And,
@@ -61,7 +63,6 @@ pub enum TokenKind {
     Continue,
     Static,
     Public,
-    Private,
 
     EOF,
 }
