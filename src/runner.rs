@@ -1,4 +1,5 @@
-use std::path::Path;
+
+use std::{path::Path, rc::Rc};
 
 use crate::backend::vm::Vm;
 
@@ -24,6 +25,6 @@ impl<'a> Runner<'a> {
         };
         let source = std::fs::read_to_string(self.file)
             .expect(format!("Unable to read source file: {path}").as_str());
-        self.vm.interpret(path, source);
+        self.vm.interpret(path.into(), source);
     }
 }

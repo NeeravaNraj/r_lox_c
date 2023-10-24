@@ -1,34 +1,41 @@
-use crate::{common::chunk::Chunk, prelude::CompilerResult, error_at};
+use std::rc::Rc;
 
 use super::{
     interpretation::{literal::Literal, op_codes::OpCodes},
-    lexer::Lexer,
+    parse_rule::{ParseRule, Rule},
     tokenization::{token::Token, tokenkind::TokenKind},
-    precedence::Precedence
 };
+use crate::{common::chunk::Chunk, error_at, prelude::CompilerResult};
 
-pub struct Compiler<'a> {
-    lexer: Lexer<'a>,
-    file_path: &'a str,
-    tokens: Vec<Token<'a>>,
+pub struct Compiler<'tokens> {
+    file_path: Rc<str>,
     had_error: bool,
+    tokens: &'tokens [Token],
+    current: usize,
 }
 
-impl<'a> Compiler<'a> {
-    pub fn new(file_path: &'a str, source: String) -> Self {
+impl<'tokens> Compiler<'tokens> {
+    pub fn new(file_path: Rc<str>, tokens: &'tokens Vec<Token>) -> Self {
         Self {
-            lexer: Lexer::new(file_path, source),
+            tokens,
             file_path,
-            tokens: Vec::new(),
             had_error: false,
+            current: 0,
         }
     }
 
-    pub fn compile(&'a mut self, chunk: &mut Chunk) -> CompilerResult {
+    pub fn compile(&mut self, chunk: &mut Chunk) -> CompilerResult {
         Ok(())
     }
 
-    fn parse_precedence(&self, precedence: Precedence) {}
+    fn parse_precedence(&self, rule: Rule) {
+        let precedence = ParseRule::get_precedence(rule);
+        let prefix_rule = self.get_rule(self.previous().as_ref().unwrap().kind);
+    }
+
+    fn get_rule(&self, kind: TokenKind) -> Rule {
+        ParseRule::rules(kind)
+    }
 
     fn number(&self, chunk: &mut Chunk) {
         if let Some(token) = self.previous() {
@@ -46,12 +53,12 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn grouping(&'a mut self) {
+    fn grouping(&mut self) {
         self.expression();
         self.consume(TokenKind::RightParen, "expected ')' after expression");
     }
 
-    fn unary(&mut self, chunk: &mut Chunk) {
+    fn unary(&self, chunk: &mut Chunk) {
         if let Some(token) = self.previous() {
             self.expression();
 
@@ -64,10 +71,12 @@ impl<'a> Compiler<'a> {
 
     fn binary(&mut self, chunk: &mut Chunk) {
         if let Some(operator) = self.previous() {
-            // let rule = self.get_rule(operator.kind);
-            // self.parse_precedence(rule.precedence);
+            let kind = operator.kind;
+            let rule = self.get_rule(kind);
+            self.parse_precedence(rule);
+            self.advance();
 
-            match operator.kind {
+            match kind {
                 TokenKind::Minus => self.emit_byte(OpCodes::Subtract, chunk),
                 TokenKind::Plus => self.emit_byte(OpCodes::Add, chunk),
                 TokenKind::Star => self.emit_byte(OpCodes::Multiply, chunk),
@@ -93,17 +102,11 @@ impl<'a> Compiler<'a> {
         chunk.write(code, self.current().unwrap().span.location.line)
     }
 
-    fn advance(&'a mut self) {
-        if let Some(token) = self.tokens.pop() {
-            self.tokens[0] = token;
-        }
-
-        if let Ok(token) = self.lexer.token() {
-            self.tokens.push(token);
-        }
+    fn advance(&mut self) {
+        self.current += 1;
     }
 
-    fn consume(&'a mut self, kind: TokenKind, message: &str) {
+    fn consume(&mut self, kind: TokenKind, message: &str) {
         if let Some(token) = self.current() {
             if token.kind == kind {
                 self.advance();
@@ -118,11 +121,11 @@ impl<'a> Compiler<'a> {
         self.emit_byte(OpCodes::Return, chunk);
     }
 
-    fn current(&self) -> Option<&Token<'a>> {
-        self.tokens.get(1)
+    fn current(&self) -> Option<&Token> {
+        self.tokens.get(self.current)
     }
 
-    fn previous(&self) -> Option<&Token<'a>> {
-        self.tokens.get(0)
+    fn previous(&self) -> Option<&Token> {
+        self.tokens.get(self.current - 1)
     }
 }

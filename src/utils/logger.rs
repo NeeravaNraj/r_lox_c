@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::fmt::Display;
 
 use crate::frontend::tokenization::span::Span;
@@ -53,8 +54,8 @@ impl Log {
         }
     }
 
-    fn get_file_line(file: &str, line: usize) -> Option<String> {
-        let Ok(source) = std::fs::read_to_string(file) else {
+    fn get_file_line(file: Rc<str>, line: usize) -> Option<String> {
+        let Ok(source) = std::fs::read_to_string(&*file) else {
             return None
         };
         source.lines().nth(line - 2).map(|s| String::from(s))
@@ -76,7 +77,7 @@ impl Log {
             .as_str(),
         );
 
-        let Some(code) = Log::get_file_line(span.file, span.location.line as usize) else {
+        let Some(code) = Log::get_file_line(span.file.clone(), span.location.line as usize) else {
             base.push_str(
                 format!(
                     "\x1B[1m\x1B[38;5;255mCould not read source for path `{}`.",

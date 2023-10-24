@@ -1,20 +1,20 @@
+use std::rc::Rc;
 use std::fmt::Display;
 use super::location::Location;
 
-
-pub struct Span<'a> {
-    pub file: &'a str,
+pub struct Span {
+    pub file: Rc<str>,
     pub location: Location,
 }
 
-impl<'a> Display for Span<'a> {
+impl Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.file, self.location)
     }
 }
 
-impl<'a> Span<'a> {
-    pub fn new(file: &'a str, location: Location) -> Self {
+impl Span {
+    pub fn new(file: Rc<str>, location: Location) -> Self {
         Self {
             file,
             location,
@@ -23,7 +23,7 @@ impl<'a> Span<'a> {
 
     pub fn dup(&self) -> Self {
         Self {
-            file: self.file,
+            file: self.file.clone(),
             location: self.location
         }
     }

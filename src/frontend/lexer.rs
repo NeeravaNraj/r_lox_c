@@ -1,22 +1,17 @@
-use crate::{prelude::LexerResult, error_at};
-use super::tokenization::{
-    location::Location,
-    token::Token,
-    tokenkind::TokenKind,
-    span::Span,
-};
+use super::tokenization::{location::Location, span::Span, token::Token, tokenkind::TokenKind};
+use crate::{error_at, prelude::LexerResult};
+use std::rc::Rc;
 
-
-pub struct Lexer<'a> {
-    file_path: &'a str,
+pub struct Lexer {
+    file_path: Rc<str>,
     source: Vec<char>,
     location: Location,
     start: usize,
     current: usize,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(file_path: &'a str, source: String) -> Self {
+impl Lexer {
+    pub fn new(file_path: Rc<str>, source: String) -> Self {
         Self {
             file_path,
             source: source.chars().collect(),
@@ -26,13 +21,25 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    pub fn tokens(&mut self) -> Result<Vec<Token>, ()> {
+        let mut stream: Vec<Token> = Vec::new();
+        loop {
+            if self.is_at_end() {
+                break;
+            }
+            stream.push(self.token()?);
+        }
+
+        Ok(stream)
+    }
+
     pub fn token(&mut self) -> LexerResult {
         self.skip_whitespace();
         self.start = self.current;
         self.location.start = self.location.end;
 
         if self.is_at_end() {
-            return Ok(Token::eof(Span::new(self.file_path, self.location)));
+            return Ok(Token::eof(Span::new(self.file_path.clone(), self.location)));
         }
 
         let c = self.advance();
@@ -133,11 +140,9 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn make_token(&mut self, kind: TokenKind) -> Token<'_> {
-        let lexeme: String = self.source[self.start..self.current]
-            .iter()
-            .collect();
-        Token::new(kind, Span::new(self.file_path, self.location), lexeme)
+    fn make_token(&mut self, kind: TokenKind) -> Token {
+        let lexeme: String = self.source[self.start..self.current].iter().collect();
+        Token::new(kind, Span::new(self.file_path.clone(), self.location), lexeme)
     }
 
     fn skip_whitespace(&mut self) {
@@ -169,7 +174,9 @@ impl<'a> Lexer<'a> {
         while let Some(ch) = self.peek() {
             if self.is_alphanum(ch) || ch.is_ascii_digit() {
                 self.advance();
-            } else { break; }
+            } else {
+                break;
+            }
         }
 
         let Some(kind) = self.keywords() else {
@@ -189,8 +196,11 @@ impl<'a> Lexer<'a> {
 
         if self.is_at_end() {
             self.location.end = self.location.start + 1;
-            error_at!(Span::new(self.file_path, self.location),"unterminated string");
-            return Err(())
+            error_at!(
+                Span::new(self.file_path.clone(), self.location),
+                "unterminated string"
+            );
+            return Err(());
         }
         self.advance();
 
@@ -217,7 +227,6 @@ impl<'a> Lexer<'a> {
     //     Ok(self.make_token(TokenKind::FormatString))
     // }
 
-    
     fn number(&mut self) -> LexerResult {
         while let Some(ch) = self.peek() {
             if !ch.is_ascii_digit() {
@@ -230,7 +239,7 @@ impl<'a> Lexer<'a> {
             self.advance();
             while let Some(ch) = self.peek() {
                 if !ch.is_ascii_digit() {
-                    return Ok(self.make_token(TokenKind::Float))
+                    return Ok(self.make_token(TokenKind::Float));
                 }
                 self.advance();
             }
@@ -285,7 +294,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn create_span(&self) -> Span {
-        Span::new(self.file_path, self.location)
+        Span::new(self.file_path.clone(), self.location)
     }
 
     fn is_at_end(&self) -> bool {
@@ -319,7 +328,7 @@ impl<'a> Lexer<'a> {
             "return" => Some(TokenKind::Return),
             "or" => Some(TokenKind::Or),
             "and" => Some(TokenKind::And),
-            _ => None
+            _ => None,
         }
     }
 

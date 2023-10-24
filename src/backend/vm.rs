@@ -1,9 +1,12 @@
+use std::rc::Rc;
+
 use crate::{
     common::chunk::Chunk,
     error,
     frontend::{
         comiler::Compiler,
         interpretation::{interpret_result::InterpretResult, literal::Literal, op_codes::OpCodes},
+        lexer::Lexer,
     },
     utils::debug::Debugger,
 };
@@ -25,9 +28,13 @@ impl Vm {
         }
     }
 
-    pub fn interpret(&mut self, file_path: &str, source: String) -> InterpretResult {
+    pub fn interpret(&mut self, file_path: Rc<str>, source: String) -> InterpretResult {
         let mut chunk = Chunk::new();
-        let mut compiler = Compiler::new(file_path, source);
+        let mut lexer = Lexer::new(file_path.clone(), source);
+        let Ok(tokens) = lexer.tokens() else {
+            return InterpretResult::CompileError;
+        };
+        let mut compiler = Compiler::new(file_path.clone(), &tokens);
         let Ok(()) = compiler.compile(&mut chunk) else {
             error!("Couldn't run file due to error(s).");
             return InterpretResult::CompileError;
