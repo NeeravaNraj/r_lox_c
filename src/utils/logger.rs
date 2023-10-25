@@ -52,6 +52,7 @@ impl Log {
         } else {
             println!("{level}: {message_decoration}{message}");
         }
+        print!("\x1B[0m"); // reset
     }
 
     fn get_file_line(file: Rc<str>, line: usize) -> Option<String> {
@@ -61,7 +62,7 @@ impl Log {
         source.lines().nth(line - 2).map(|s| String::from(s))
     }
 
-    pub fn interpreter_log(level: Level, span: Span, message: String) {
+    pub fn interpreter_log(level: Level, span: &Span, message: String) {
         let message_decoration = "\x1B[1m\x1B[38;5;255m";
         // Initial message
         let mut base = format!("{level}: {message_decoration}{message}\x1B[0m\n");

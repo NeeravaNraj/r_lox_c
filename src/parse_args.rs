@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, rc::Rc};
 
 use crate::{repl::Repl, runner::Runner};
 
@@ -10,6 +10,21 @@ USAGE: lox [OPTIONS]* [FILE]
 -h, --help    Shows this screen.
 "#;
 
+#[derive(Clone)]
+pub struct Options {
+    pub file_path: Rc<Path>,
+    pub debug: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options {
+            file_path: Path::new("").into(),
+            debug: false,
+        }
+    }
+}
+
 pub struct ParseArgs {
     args: Vec<String>,
 }
@@ -20,24 +35,25 @@ impl ParseArgs {
     }
 
     pub fn parse(&self) {
-        if self.args.len() == 0 {
-            Repl::start();
+        let options = self.parse_option(&self.args);
+        if !options.file_path.exists() {
+            Repl::start(options);
         } else {
-            for arg in self.args.iter() {
-                if let Some(path) = self.parse_option(arg) {
-                    let path = Path::new(path);
-                    let mut runner = Runner::new(path);
-                    runner.run();
-                }
-            }
+            let mut runner = Runner::new(options);
+            runner.run();
         }
     }
 
-    pub fn parse_option<'a>(&'a self, arg: &'a String) -> Option<&String> {
-        match arg.as_str() {
-            "-h" | "--help" =>  println!("{HELP}"),
-            _ => return Some(arg),
+    pub fn parse_option<'a>(&'a self, args: &'a Vec<String>) -> Options {
+        let mut options = Options::default();
+        for arg in args.iter() {
+            match arg.as_str() {
+                "-h" | "--help" => println!("{HELP}"),
+                "-d" | "--debug" => options.debug = true,
+                _ => options.file_path = Path::new(arg.as_str()).into(),
+            }
         }
-        None
+
+        options
     }
 }

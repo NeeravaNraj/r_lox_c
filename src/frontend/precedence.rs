@@ -1,3 +1,4 @@
+#[derive(PartialEq, PartialOrd)]
 pub enum Precedence {
     None,
     Assignment,

@@ -4,42 +4,42 @@ use crate::{
     common::chunk::Chunk,
     error,
     frontend::{
-        comiler::Compiler,
+        compiler::Compiler,
         interpretation::{interpret_result::InterpretResult, literal::Literal, op_codes::OpCodes},
         lexer::Lexer,
     },
-    utils::debug::Debugger,
+    utils::debug::Debugger, parse_args::Options,
 };
 
 pub struct Vm {
     debugger: Debugger,
-    debug_trace: bool,
     stack: Vec<Literal>,
     ip: usize,
+    options: Options
 }
 
 impl Vm {
-    pub fn new() -> Self {
+    pub fn new(options: Options) -> Self {
         Self {
             ip: 0,
-            debug_trace: false,
             debugger: Debugger::new("debug_vm"),
             stack: Vec::new(),
+            options
         }
     }
 
     pub fn interpret(&mut self, file_path: Rc<str>, source: String) -> InterpretResult {
-        let mut chunk = Chunk::new();
         let mut lexer = Lexer::new(file_path.clone(), source);
         let Ok(tokens) = lexer.tokens() else {
             return InterpretResult::CompileError;
         };
         let mut compiler = Compiler::new(file_path.clone(), &tokens);
-        let Ok(()) = compiler.compile(&mut chunk) else {
+        let Ok(chunk) = compiler.compile() else {
             error!("Couldn't run file due to error(s).");
             return InterpretResult::CompileError;
         };
-        return self.run(&chunk);
+        self.reset_stack();
+        return self.run(chunk);
     }
 
     pub fn run(&mut self, chunk: &Chunk) -> InterpretResult {
@@ -61,7 +61,7 @@ impl Vm {
             };
         }
         loop {
-            if self.debug_trace {
+            if self.options.debug {
                 self.print_stack_slots();
                 self.debugger.disassemble_instruction(chunk, self.ip);
             }
@@ -76,7 +76,6 @@ impl Vm {
                 OpCodes::Constant(index) => {
                     let constant = chunk.constants[index];
                     self.stack.push(constant);
-                    println!("{constant}");
                 }
                 OpCodes::Negate => {
                     if let Some(c) = self.stack.pop() {
@@ -97,24 +96,18 @@ impl Vm {
     }
 
     fn print_stack_slots(&self) {
-        print!("        ");
+        println!("stack trace:");
+        let mut stack = String::from("[");
         for slot in self.stack.iter() {
-            println!("[{}]", slot)
+            stack.push_str(slot.to_string().as_str());
+            stack.push_str(", ");
         }
+        stack.push(']');
+        println!("{stack}");
     }
 
-    #[allow(dead_code)]
     fn reset_stack(&mut self) {
+        self.ip = 0;
         self.stack.clear()
-    }
-
-    #[allow(dead_code)]
-    pub fn set_debug_mode(&mut self) {
-        self.debug_trace = true
-    }
-
-    #[allow(dead_code)]
-    pub fn disable_debug_mode(&mut self) {
-        self.debug_trace = false
     }
 }

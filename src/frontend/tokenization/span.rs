@@ -2,6 +2,7 @@ use std::rc::Rc;
 use std::fmt::Display;
 use super::location::Location;
 
+#[derive(Debug)]
 pub struct Span {
     pub file: Rc<str>,
     pub location: Location,

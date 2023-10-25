@@ -1,5 +1,6 @@
 use super::{span::Span, tokenkind::TokenKind};
 
+#[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,

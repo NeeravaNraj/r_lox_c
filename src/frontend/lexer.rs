@@ -197,7 +197,7 @@ impl Lexer {
         if self.is_at_end() {
             self.location.end = self.location.start + 1;
             error_at!(
-                Span::new(self.file_path.clone(), self.location),
+                &self.create_span(),
                 "unterminated string"
             );
             return Err(());
