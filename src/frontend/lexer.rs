@@ -14,8 +14,8 @@ impl Lexer {
     pub fn new(file_path: Rc<str>, source: String) -> Self {
         Self {
             file_path,
-            source: source.chars().collect(),
-            location: Location::new(1, 0, 0),
+            source: source.trim_end().chars().collect(),
+            location: Location::default(),
             start: 0,
             current: 0,
         }
@@ -23,12 +23,10 @@ impl Lexer {
 
     pub fn tokens(&mut self) -> Result<Vec<Token>, ()> {
         let mut stream: Vec<Token> = Vec::new();
-        loop {
-            if self.is_at_end() {
-                break;
-            }
+        while !self.is_at_end() {
             stream.push(self.token()?);
         }
+        stream.push(Token::eof(Span::new(self.file_path.clone(), self.location)));
 
         Ok(stream)
     }
@@ -37,10 +35,6 @@ impl Lexer {
         self.skip_whitespace();
         self.start = self.current;
         self.location.start = self.location.end;
-
-        if self.is_at_end() {
-            return Ok(Token::eof(Span::new(self.file_path.clone(), self.location)));
-        }
 
         let c = self.advance();
 
@@ -142,18 +136,23 @@ impl Lexer {
 
     fn make_token(&mut self, kind: TokenKind) -> Token {
         let lexeme: String = self.source[self.start..self.current].iter().collect();
-        Token::new(kind, Span::new(self.file_path.clone(), self.location), lexeme)
+        Token::new(
+            kind,
+            Span::new(self.file_path.clone(), self.location),
+            lexeme,
+        )
     }
 
     fn skip_whitespace(&mut self) {
         loop {
             match self.peek() {
-                Some(' ') | Some('\r') | Some('\t') => self.advance(),
+                Some(' ') | Some('\r') | Some('\t') => {
+                    self.advance();
+                }
                 Some('\n') => {
+                    self.advance();
                     self.reset_loc();
                     self.location.line += 1;
-                    self.advance();
-                    break;
                 }
                 Some('/') => {
                     if self.peek_next() == Some('/') {
@@ -163,7 +162,6 @@ impl Lexer {
                     } else if self.peek_next() == Some('*') {
                         // self.block_comment()?;
                     }
-                    break;
                 }
                 _ => break,
             };
@@ -196,10 +194,7 @@ impl Lexer {
 
         if self.is_at_end() {
             self.location.end = self.location.start + 1;
-            error_at!(
-                &self.create_span(),
-                "unterminated string"
-            );
+            error_at!(&self.create_span(), "unterminated string");
             return Err(());
         }
         self.advance();

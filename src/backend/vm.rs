@@ -2,20 +2,22 @@ use std::rc::Rc;
 
 use crate::{
     common::chunk::Chunk,
-    error,
+    error, error_line,
     frontend::{
         compiler::Compiler,
         interpretation::{interpret_result::InterpretResult, literal::Literal, op_codes::OpCodes},
         lexer::Lexer,
+        tokenization::{location::Location, span::Span},
     },
-    utils::debug::Debugger, parse_args::Options,
+    parse_args::Options,
+    utils::debug::Debugger,
 };
 
 pub struct Vm {
     debugger: Debugger,
     stack: Vec<Literal>,
     ip: usize,
-    options: Options
+    options: Options,
 }
 
 impl Vm {
@@ -24,7 +26,7 @@ impl Vm {
             ip: 0,
             debugger: Debugger::new("debug_vm"),
             stack: Vec::new(),
-            options
+            options,
         }
     }
 
@@ -78,9 +80,10 @@ impl Vm {
                     self.stack.push(constant);
                 }
                 OpCodes::Negate => {
-                    if let Some(c) = self.stack.pop() {
-                        self.stack.push(c.negate());
-                    }
+                    let Ok(c) = self.handle_negate(&chunk) else {
+                        return InterpretResult::RuntimeError
+                    };
+                    self.stack.push(c)
                 }
                 OpCodes::Add => vm_binary_op!(+),
                 OpCodes::Subtract => vm_binary_op!(-),
@@ -89,6 +92,23 @@ impl Vm {
             }
             self.bump();
         }
+    }
+
+    fn handle_negate(&mut self, chunk: &Chunk) -> Result<Literal, ()> {
+        if let Some(c) = self.stack.pop() {
+            if !c.is_number() {
+                if let Some(line) = chunk.get_line(self.ip) {
+                    let line = line.line;
+                    error_line!(
+                        &self.create_span(line),
+                        "cannot negate type {}",
+                        c.type_name()
+                    )
+                }
+            }
+            return Ok(c.negate());
+        }
+        Err(())
     }
 
     fn bump(&mut self) {
@@ -109,5 +129,10 @@ impl Vm {
     fn reset_stack(&mut self) {
         self.ip = 0;
         self.stack.clear()
+    }
+
+    fn create_span(&self, line: u32) -> Span {
+        let file = self.options.file_path.to_str().unwrap();
+        Span::new(file.into(), Location::new(line, 0, 0))
     }
 }

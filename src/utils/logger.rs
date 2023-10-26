@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::fmt::Display;
+use std::rc::Rc;
 
 use crate::frontend::tokenization::span::Span;
 
@@ -41,12 +41,12 @@ impl Display for Level {
         write!(f, "{}{s}", self.get_level_color())
     }
 }
+static message_decoration: &str = "\x1B[1m\x1B[38;5;255m";
 
 pub struct Log;
 
 impl Log {
     pub fn log(level: Level, message: String) {
-        let message_decoration = "\x1B[1m\x1B[38;5;255m";
         if level.is_error() {
             eprintln!("{level}: {message_decoration}{message}");
         } else {
@@ -59,11 +59,10 @@ impl Log {
         let Ok(source) = std::fs::read_to_string(&*file) else {
             return None
         };
-        source.lines().nth(line - 2).map(|s| String::from(s))
+        source.lines().nth(line - 1).map(|s| String::from(s))
     }
 
-    pub fn interpreter_log(level: Level, span: &Span, message: String) {
-        let message_decoration = "\x1B[1m\x1B[38;5;255m";
+    pub fn interpreter_log(level: Level, span: &Span, message: String, line_mode: bool) {
         // Initial message
         let mut base = format!("{level}: {message_decoration}{message}\x1B[0m\n");
 
@@ -72,45 +71,46 @@ impl Log {
             format!(
                 " \x1B[1m\x1B[38;5;012m-->\x1B[38;5;255m {}:{}:{}\x1B[0m\n",
                 span.file,
-                span.location.line - 1,
+                span.location.line,
                 span.location.start
             )
             .as_str(),
         );
 
-        let Some(code) = Log::get_file_line(span.file.clone(), span.location.line as usize) else {
+        if !line_mode {
+            let Some(code) = Log::get_file_line(span.file.clone(), span.location.line as usize) else {
+                base.push_str(
+                    format!(
+                        "\x1B[1m\x1B[38;5;255mCould not read source for path `{}`.",
+                        span.file
+                        ).as_str()
+                    );
+                Log::print(level, base);
+                return;
+            };
+
+            // source code line
             base.push_str(
                 format!(
-                    "\x1B[1m\x1B[38;5;255mCould not read source for path `{}`.",
-                    span.file
-                ).as_str()
+                    "\x1B[1m\x1B[38;5;012m   |\n{:<3}|\x1B[0m {}\n",
+                    span.location.line,
+                    code
+                )
+                .as_str(),
             );
-            Log::print(level, base);
-            return;
-        };
 
-        // source code line
-        base.push_str(
-            format!(
-                "\x1B[1m\x1B[38;5;012m   |\n{:<3}|\x1B[0m {}\n",
-                span.location.line - 1,
-                code
-            )
-            .as_str(),
-        );
-
-        // pointers
-        base.push_str(
-            format!(
-                "\x1B[1m\x1B[38;5;012m{:>3}| {}{}{}",
-                " ",
-                level.get_level_color(),
-                String::from(" ").repeat(span.location.start - 1),
-                String::from("^").repeat(span.location.end - span.location.start)
-            )
-            .as_str(),
-        );
-
+            // pointers
+            base.push_str(
+                format!(
+                    "\x1B[1m\x1B[38;5;012m{:>3}| {}{}{}",
+                    " ",
+                    level.get_level_color(),
+                    String::from(" ").repeat(span.location.start),
+                    String::from("^").repeat(span.location.end - span.location.start)
+                )
+                .as_str(),
+            );
+        }
         Log::print(level, base);
     }
 
@@ -143,7 +143,7 @@ macro_rules! info {
 }
 
 #[macro_export]
-macro_rules! warn {
+macro_rules! warning {
     ($($fmt:tt)+) => {
         use crate::utils;
         log!(Level::Warn, $($fmt)+);
@@ -165,7 +165,17 @@ macro_rules! error_at {
     ($span:expr, $($fmt:tt)+) => {
         {
             use crate::utils::logger::{Log, Level};
-            Log::interpreter_log(Level::Error, $span, format!($($fmt)+));
+            Log::interpreter_log(Level::Error, $span, format!($($fmt)+), false);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! error_line {
+    ($span:expr, $($fmt:tt)+) => {
+        {
+            use crate::utils::logger::{Log, Level};
+            Log::interpreter_log(Level::Error, $span, format!($($fmt)+), true);
         }
     };
 }

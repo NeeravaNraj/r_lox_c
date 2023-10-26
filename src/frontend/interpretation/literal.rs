@@ -3,6 +3,7 @@ use std::ops::{Add, Div, Mul, Sub};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Literal {
+    None,
     Float(f64),
     Int(i32),
 }
@@ -11,7 +12,8 @@ impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Float(v) => write!(f, "{v}"),
-            Literal::Int(v) => write!(f, "{v}"),
+            Self::Int(v) => write!(f, "{v}"),
+            Self::None => write!(f, "none"),
         }
     }
 }
@@ -29,8 +31,17 @@ impl Literal {
         match self {
             Self::Float(_) => "float",
             Self::Int(_) => "int",
+            Self::None => "none",
         }
         .to_string()
+    }
+
+    pub fn is_number(&self) -> bool {
+        match self {
+            Self::Float(_) => true,
+            Self::Int(_) => true,
+            _ => false
+        }
     }
 }
 

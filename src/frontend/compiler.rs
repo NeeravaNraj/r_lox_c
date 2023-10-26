@@ -31,6 +31,7 @@ impl<'tokens> Compiler<'tokens> {
         self.expression();
         self.consume(TokenKind::EOF, "expected end of expression.");
         self.end();
+        if self.had_error { return Err(()) }
         Ok(&self.chunk)
     }
 
@@ -54,8 +55,9 @@ impl<'tokens> Compiler<'tokens> {
 
         match prefix_rule {
             RuleFn::None => {
-                let span = &self.current().span;
-                error_at!(span, "expected expression");
+                self.error_occured();
+                let token = self.previous();
+                error_at!(&token.span, "expected expression");
                 return;
             }
             _ => self.rule_fn(prefix_rule),
@@ -107,7 +109,7 @@ impl<'tokens> Compiler<'tokens> {
 
         match kind {
             TokenKind::Minus => self.emit_byte(OpCodes::Negate),
-            _ => return,
+            _ => (),
         }
     }
 
@@ -122,7 +124,7 @@ impl<'tokens> Compiler<'tokens> {
             TokenKind::Plus => self.emit_byte(OpCodes::Add),
             TokenKind::Star => self.emit_byte(OpCodes::Multiply),
             TokenKind::Slash => self.emit_byte(OpCodes::Divide),
-            _ => return,
+            _ => (),
         }
     }
 
@@ -154,7 +156,7 @@ impl<'tokens> Compiler<'tokens> {
             return;
         }
         error_at!(&token.span, "{message}");
-        self.had_error = true;
+        self.error_occured();
     }
 
     fn end(&mut self) {
@@ -167,5 +169,9 @@ impl<'tokens> Compiler<'tokens> {
 
     fn previous(&self) -> &'tokens Token {
         &self.tokens[self.current - 1]
+    }
+
+    fn error_occured(&mut self) {
+        self.had_error = true;
     }
 }

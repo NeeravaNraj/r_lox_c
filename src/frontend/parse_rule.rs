@@ -4,14 +4,12 @@ pub type Rule = u16;
 
 // Probably wont need postfix but whatever
 // 4 bits postfix, 4 bits infix, 4 bits prefix, 4 bits precedence
-const PREFIX_SHIFT: u16 = 4;
-const INFIX_SHIFT: u16 = 8;
-const POSTFIX_SHIFT: u16 = 12;
 pub const PRECEDENCE_MASK: u16 = 0x000F;
 pub const PREFIX_MASK: u16 = 0x00F0;
 pub const INFIX_MASK: u16 = 0x0F00;
 pub const POSTFIX_MASK: u16 = 0xF000;
 
+#[derive(Debug)]
 pub enum RuleFn {
     None,
 

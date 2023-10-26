@@ -13,24 +13,6 @@ pub enum Precedence {
     Primary,
 }
 
-impl From<Precedence> for u16 {
-    fn from(value: Precedence) -> Self {
-        match value {
-            Precedence::None => 0,
-            Precedence::Assignment => 1,
-            Precedence::Or => 2,
-            Precedence::And => 3,
-            Precedence::Equality => 4,
-            Precedence::Comparison => 5,
-            Precedence::Term => 6,
-            Precedence::Factor => 7,
-            Precedence::Unary => 8,
-            Precedence::Call => 9,
-            Precedence::Primary => 10,
-        }
-    }
-}
-
 impl From<u16> for Precedence {
     fn from(value: u16) -> Self {
         match value {

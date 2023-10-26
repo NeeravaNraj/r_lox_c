@@ -9,6 +9,14 @@
         // "cwd": "${workspaceRoot}/path-to",
     },
     {
+        "name": "Launch file",
+        "type": "lldb",
+        "request": "launch",
+        "program": "${workspaceRoot}/target/debug/r_lox",
+        "args": ["test.lox"]
+        // "cwd": "${workspaceRoot}/path-to",
+    },
+    {
         "name": "Attach to a named executable",
         "type": "lldb",
         "request": "attach",
