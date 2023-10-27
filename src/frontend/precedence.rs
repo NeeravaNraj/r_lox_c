@@ -2,6 +2,7 @@
 pub enum Precedence {
     None,
     Assignment,
+    Ternary,
     Or,
     And,
     Equality,
@@ -18,15 +19,16 @@ impl From<u16> for Precedence {
         match value {
             0 => Precedence::None,
             1 => Precedence::Assignment,
-            2 => Precedence::Or,
-            3 => Precedence::And,
-            4 => Precedence::Equality,
-            5 => Precedence::Comparison,
-            6 => Precedence::Term,
-            7 => Precedence::Factor,
-            8 => Precedence::Unary,
-            9 => Precedence::Call,
-            10 => Precedence::Primary,
+            2 => Precedence::Ternary,
+            3 => Precedence::Or,
+            4 => Precedence::And,
+            5 => Precedence::Equality,
+            6 => Precedence::Comparison,
+            7 => Precedence::Term,
+            8 => Precedence::Factor,
+            9 => Precedence::Unary,
+            10 => Precedence::Call,
+            11 => Precedence::Primary,
             _ => panic!("Precedence for {value} does not exist"),
         }
     }

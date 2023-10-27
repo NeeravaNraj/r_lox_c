@@ -1,19 +1,21 @@
-use std::{path::Path, rc::Rc};
+use std::{path::Path, rc::Rc, process};
 
 use crate::{repl::Repl, runner::Runner};
 
 const HELP: &str = r#"
-USAGE: lox [OPTIONS]* [FILE] 
+USAGE: lox [OPTIONS] [FILE] 
 
-*No arguments will start the REPL.
-
--h, --help    Shows this screen.
+Options:
+  -h, --help    Displays this screen.
+  -d, --debug   Displays the opcodes and stack values.
+  -t, --tokens  Displays lexed tokens.
 "#;
 
 #[derive(Clone)]
 pub struct Options {
     pub file_path: Rc<Path>,
     pub debug: bool,
+    pub print_tokens: bool,
 }
 
 impl Default for Options {
@@ -21,6 +23,7 @@ impl Default for Options {
         Options {
             file_path: Path::new("").into(),
             debug: false,
+            print_tokens: false
         }
     }
 }
@@ -48,8 +51,12 @@ impl ParseArgs {
         let mut options = Options::default();
         for arg in args.iter() {
             match arg.as_str() {
-                "-h" | "--help" => println!("{HELP}"),
+                "-h" | "--help" => {
+                    print!("{HELP}");
+                    process::exit(0)
+                },
                 "-d" | "--debug" => options.debug = true,
+                "-t" | "--tokens" => options.print_tokens = true,
                 _ => options.file_path = Path::new(arg.as_str()).into(),
             }
         }

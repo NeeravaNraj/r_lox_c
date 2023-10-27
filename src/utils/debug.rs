@@ -60,12 +60,23 @@ impl Debugger {
 
         match instruction.into() {
             OpCodes::Constant(value) => self.constant_instruction(chunk, value, offset),
-            OpCodes::Return => self.simple_instruction(chunk, offset),
-            OpCodes::Negate => self.simple_instruction(chunk, offset),
-            OpCodes::Add => self.simple_instruction(chunk, offset),
-            OpCodes::Subtract => self.simple_instruction(chunk, offset),
-            OpCodes::Multiply => self.simple_instruction(chunk, offset),
-            OpCodes::Divide => self.simple_instruction(chunk, offset),
+            OpCodes::Return |
+            OpCodes::Negate |
+            OpCodes::Add |
+            OpCodes::Subtract |
+            OpCodes::Multiply |
+            OpCodes::Divide |
+            OpCodes::True |
+            OpCodes::False |
+            OpCodes::Not |
+            OpCodes::Less |
+            OpCodes::Greater |
+            OpCodes::LessEquals |
+            OpCodes::GreaterEquals |
+            OpCodes::NotEquals |
+            OpCodes::Equals |
+            OpCodes::Ternary |
+            OpCodes::None => self.simple_instruction(chunk, offset),
         }
     }
 }

@@ -1,5 +1,5 @@
 use super::tokenization::{location::Location, span::Span, token::Token, tokenkind::TokenKind};
-use crate::{error_at, prelude::LexerResult};
+use crate::{error_at, prelude::LexerResult, parse_args::Options};
 use std::rc::Rc;
 
 pub struct Lexer {
@@ -8,16 +8,18 @@ pub struct Lexer {
     location: Location,
     start: usize,
     current: usize,
+    options: Options
 }
 
 impl Lexer {
-    pub fn new(file_path: Rc<str>, source: String) -> Self {
+    pub fn new(file_path: Rc<str>, source: String, options: Options) -> Self {
         Self {
             file_path,
             source: source.trim_end().chars().collect(),
             location: Location::default(),
             start: 0,
             current: 0,
+            options
         }
     }
 
@@ -27,7 +29,10 @@ impl Lexer {
             stream.push(self.token()?);
         }
         stream.push(Token::eof(Span::new(self.file_path.clone(), self.location)));
-
+        if self.options.print_tokens {
+            self.print_tokens(&stream);
+        }
+        
         Ok(stream)
     }
 
@@ -234,10 +239,11 @@ impl Lexer {
             self.advance();
             while let Some(ch) = self.peek() {
                 if !ch.is_ascii_digit() {
-                    return Ok(self.make_token(TokenKind::Float));
+                    break; 
                 }
                 self.advance();
             }
+            return Ok(self.make_token(TokenKind::Float));
         }
 
         Ok(self.make_token(TokenKind::Int))
@@ -330,5 +336,11 @@ impl Lexer {
     fn reset_loc(&mut self) {
         self.location.start = 0;
         self.location.end = 0;
+    }
+
+    fn print_tokens(&self, tokens: &Vec<Token>) {
+        for token in tokens.iter() {
+            println!("{:?}", token);
+        }
     }
 }

@@ -31,7 +31,7 @@ impl Vm {
     }
 
     pub fn interpret(&mut self, file_path: Rc<str>, source: String) -> InterpretResult {
-        let mut lexer = Lexer::new(file_path.clone(), source);
+        let mut lexer = Lexer::new(file_path.clone(), source, self.options.clone());
         let Ok(tokens) = lexer.tokens() else {
             return InterpretResult::CompileError;
         };
@@ -45,23 +45,6 @@ impl Vm {
     }
 
     pub fn run(&mut self, chunk: &Chunk) -> InterpretResult {
-        macro_rules! vm_binary_op {
-            // Only use for binary operations
-            // WARNING: `tt` will match almost anything
-            ($op:tt) => {
-                {
-                    let rhs = self.stack.pop().unwrap();
-                    let lhs = self.stack.pop().unwrap();
-                    match (lhs $op rhs) {
-                        Ok(value) => self.stack.push(value),
-                        Err(err) => {
-                            error!("{err}");
-                            return InterpretResult::RuntimeError
-                        }
-                    };
-                }
-            };
-        }
         loop {
             if self.options.debug {
                 self.print_stack_slots();
@@ -80,39 +63,191 @@ impl Vm {
                     self.stack.push(constant);
                 }
                 OpCodes::Negate => {
-                    let Ok(c) = self.handle_negate(&chunk) else {
+                    let Ok(c) = self.negate(&chunk) else {
                         return InterpretResult::RuntimeError
                     };
                     self.stack.push(c)
                 }
-                OpCodes::Add => vm_binary_op!(+),
-                OpCodes::Subtract => vm_binary_op!(-),
-                OpCodes::Multiply => vm_binary_op!(*),
-                OpCodes::Divide => vm_binary_op!(/),
+                OpCodes::Add => {
+                    let Ok(res) = self.binary(|l, r| l + r, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+                OpCodes::Subtract => {
+                    let Ok(res) = self.binary(|l, r| l - r, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+                OpCodes::Multiply => {
+                    let Ok(res) = self.binary(|l, r| l * r, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+                OpCodes::Divide => {
+                    let Ok(res) = self.binary(|l, r| l / r, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+                OpCodes::True => self.stack.push(Literal::Bool(true)),
+                OpCodes::False => self.stack.push(Literal::Bool(false)),
+                OpCodes::None => self.stack.push(Literal::None),
+                OpCodes::Not => {
+                    let Ok(res) = self.not(chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+                OpCodes::Equals => {
+                    let Ok(res) = self.binary(|a, b| {
+                        a.equatable(&b)?;
+                        Ok(Literal::Bool(a == b))
+                    }, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+
+                OpCodes::NotEquals => {
+                    let Ok(res) = self.binary(|a, b| {
+                        a.equatable(&b)?;
+                        Ok(Literal::Bool(a != b))
+                    }, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+
+                OpCodes::Greater => {
+                    let Ok(res) = self.binary(|a, b| {
+                        a.comparable(&b)?;
+                        Ok(Literal::Bool(a > b))
+                    }, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+
+                OpCodes::GreaterEquals => {
+                    let Ok(res) = self.binary(|a, b| {
+                        a.equatable(&b)?;
+                        Ok(Literal::Bool(a >= b))
+                    }, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+
+                OpCodes::Less => {
+                    let Ok(res) = self.binary(|a, b| {
+                        a.equatable(&b)?;
+                        Ok(Literal::Bool(a < b))
+                    }, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+
+                OpCodes::LessEquals => {
+                    let Ok(res) = self.binary(|a, b| {
+                        a.equatable(&b)?;
+                        Ok(Literal::Bool(a <= b))
+                    }, chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+                }
+                OpCodes::Ternary => {
+                    let Ok(res) = self.ternary(chunk) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack.push(res)
+
+                }
             }
             self.bump();
         }
     }
 
-    fn handle_negate(&mut self, chunk: &Chunk) -> Result<Literal, ()> {
-        if let Some(c) = self.stack.pop() {
-            if !c.is_number() {
-                if let Some(line) = chunk.get_line(self.ip) {
-                    let line = line.line;
-                    error_line!(
-                        &self.create_span(line),
-                        "cannot negate type {}",
-                        c.type_name()
-                    )
-                }
-            }
-            return Ok(c.negate());
+    fn negate(&mut self, chunk: &Chunk) -> Result<Literal, ()> {
+        let Some(c) = self.stack.pop() else {
+            self.try_error_line(format!("no operand for `-` expression").as_str(), chunk);
+            return Err(())
+        };
+        if !c.is_number() {
+            self.try_error_line(
+                format!("cannot negate type {}", c.type_name()).as_str(),
+                chunk,
+            );
+            return Err(());
         }
-        Err(())
+        return Ok(c.negate());
+    }
+
+    fn not(&mut self, chunk: &Chunk) -> Result<Literal, ()> {
+        let Some(c) = self.stack.pop() else {
+            self.try_error_line(format!("no operand for `!` expression").as_str(), chunk);
+            return Err(())
+        };
+
+        return Ok(c.not());
+    }
+
+    fn binary(
+        &mut self,
+        f: fn(Literal, Literal) -> Result<Literal, String>,
+        chunk: &Chunk,
+    ) -> Result<Literal, ()> {
+        let Some(rhs) = self.stack.pop() else {
+            self.try_error_line(format!("no rhs operand for binary expression").as_str(), chunk);
+            return Err(())
+        };
+        let Some(lhs) = self.stack.pop() else {
+            self.try_error_line(format!("no lhs operand for binary expression").as_str(), chunk);
+            return Err(())
+        };
+        match f(lhs, rhs) {
+            Ok(value) => return Ok(value),
+            Err(err) => {
+                error!("{err}");
+                return Err(());
+            }
+        };
+    }
+
+    fn ternary(&mut self, chunk: &Chunk) -> Result<Literal, ()> {
+        let Some(falsey) = self.stack.pop() else {
+            self.try_error_line(format!("no `falsey` expression for ternary operator").as_str(), chunk);
+            return Err(())
+        };
+
+        let Some(truthy) = self.stack.pop() else {
+            self.try_error_line(format!("no `truthy` expression for ternary operator").as_str(), chunk);
+            return Err(())
+        };
+
+        let Some(condition) = self.stack.pop() else {
+            self.try_error_line(format!("no condition for ternary operator").as_str(), chunk);
+            return Err(())
+        };
+
+        if let Literal::Bool(v) = condition {
+            if v {
+                return Ok(truthy)
+            }
+        }
+        Ok(falsey)
     }
 
     fn bump(&mut self) {
         self.ip += 1
+    }
+
+    fn peek(&self, distance: usize) -> Option<&Literal> {
+        self.stack.get(self.stack.len() - 1 - distance)
     }
 
     fn print_stack_slots(&self) {
@@ -129,6 +264,16 @@ impl Vm {
     fn reset_stack(&mut self) {
         self.ip = 0;
         self.stack.clear()
+    }
+
+    fn try_error_line(&self, message: &str, chunk: &Chunk) {
+        if let Some(line) = chunk.get_line(self.ip - 1) {
+            let line = line.line;
+            error_line!(&self.create_span(line), "{}", message)
+        } else {
+            // probably unreachable
+            error!("{}", message)
+        }
     }
 
     fn create_span(&self, line: u32) -> Span {

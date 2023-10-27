@@ -41,16 +41,16 @@ impl Display for Level {
         write!(f, "{}{s}", self.get_level_color())
     }
 }
-static message_decoration: &str = "\x1B[1m\x1B[38;5;255m";
+static DECORATION: &str = "\x1B[1m\x1B[38;5;255m";
 
 pub struct Log;
 
 impl Log {
     pub fn log(level: Level, message: String) {
         if level.is_error() {
-            eprintln!("{level}: {message_decoration}{message}");
+            eprintln!("{level}: {DECORATION}{message}");
         } else {
-            println!("{level}: {message_decoration}{message}");
+            println!("{level}: {DECORATION}{message}");
         }
         print!("\x1B[0m"); // reset
     }
@@ -64,7 +64,7 @@ impl Log {
 
     pub fn interpreter_log(level: Level, span: &Span, message: String, line_mode: bool) {
         // Initial message
-        let mut base = format!("{level}: {message_decoration}{message}\x1B[0m\n");
+        let mut base = format!("{level}: {DECORATION}{message}\x1B[0m\n");
 
         // src file path and line number
         base.push_str(

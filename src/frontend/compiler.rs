@@ -31,19 +31,23 @@ impl<'tokens> Compiler<'tokens> {
         self.expression();
         self.consume(TokenKind::EOF, "expected end of expression.");
         self.end();
-        if self.had_error { return Err(()) }
+        if self.had_error {
+            return Err(());
+        }
         Ok(&self.chunk)
     }
 
     fn rule_fn(&mut self, f: RuleFn) {
         match f {
             RuleFn::None => panic!("Required fn but got `None`"),
-            RuleFn::PrefixNumber | RuleFn::InfixNumber | RuleFn::PostfixNumber => self.number(),
-            RuleFn::PrefixGrouping | RuleFn::InfixGrouping | RuleFn::PostfixGrouping => {
-                self.grouping()
-            }
-            RuleFn::PrefixUnary | RuleFn::InfixUnary | RuleFn::PostfixUnary => self.unary(),
-            RuleFn::PrefixBinary | RuleFn::InfixBinary | RuleFn::PostfixBinary => self.binary(),
+
+            RuleFn::PrefixNumber => self.number(),
+            RuleFn::PrefixGrouping => self.grouping(),
+            RuleFn::PrefixUnary => self.unary(),
+            RuleFn::PrefixLiteral => self.literal(),
+
+            RuleFn::InfixBinary => self.binary(),
+            RuleFn::InfixTernary => self.ternary(),
         }
     }
 
@@ -86,13 +90,23 @@ impl<'tokens> Compiler<'tokens> {
         let token = self.previous();
         match token.kind {
             TokenKind::Int => {
-                let value = token.lexeme.parse::<i32>().expect("Failed to parse int.");
+                let value = token.lexeme.parse::<isize>().expect("Failed to parse int.");
                 self.emit_constant(Literal::Int(value))
             }
             TokenKind::Float => {
                 let value = token.lexeme.parse::<f64>().expect("Failed to parse float.");
                 self.emit_constant(Literal::Float(value))
             }
+            _ => (),
+        }
+    }
+
+    fn literal(&mut self) {
+        let token = self.previous();
+        match token.kind {
+            TokenKind::False => self.emit_byte(OpCodes::False),
+            TokenKind::True => self.emit_byte(OpCodes::True),
+            TokenKind::None => self.emit_byte(OpCodes::None),
             _ => (),
         }
     }
@@ -109,6 +123,7 @@ impl<'tokens> Compiler<'tokens> {
 
         match kind {
             TokenKind::Minus => self.emit_byte(OpCodes::Negate),
+            TokenKind::Bang => self.emit_byte(OpCodes::Not),
             _ => (),
         }
     }
@@ -124,8 +139,21 @@ impl<'tokens> Compiler<'tokens> {
             TokenKind::Plus => self.emit_byte(OpCodes::Add),
             TokenKind::Star => self.emit_byte(OpCodes::Multiply),
             TokenKind::Slash => self.emit_byte(OpCodes::Divide),
+            TokenKind::Equals => self.emit_byte(OpCodes::Equals),
+            TokenKind::BangEqual => self.emit_byte(OpCodes::NotEquals),
+            TokenKind::Greater => self.emit_byte(OpCodes::Greater),
+            TokenKind::GreaterEqual => self.emit_byte(OpCodes::GreaterEquals),
+            TokenKind::Less => self.emit_byte(OpCodes::Less),
+            TokenKind::LessEqual => self.emit_byte(OpCodes::LessEquals),
             _ => (),
         }
+    }
+
+    fn ternary(&mut self) {
+        self.expression();
+        self.consume(TokenKind::Colon, "expected `:` after expression");
+        self.expression();
+        self.emit_byte(OpCodes::Ternary);
     }
 
     fn expression(&mut self) {
@@ -139,6 +167,11 @@ impl<'tokens> Compiler<'tokens> {
 
     fn emit_byte(&mut self, code: OpCodes) {
         self.chunk.write(code, self.previous().span.location.line)
+    }
+
+    fn emit_bytes(&mut self, a: OpCodes, b: OpCodes) {
+        self.chunk.write(a, self.previous().span.location.line);
+        self.chunk.write(b, self.previous().span.location.line);
     }
 
     fn advance(&mut self) {
