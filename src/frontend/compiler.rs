@@ -41,13 +41,16 @@ impl<'tokens> Compiler<'tokens> {
         match f {
             RuleFn::None => panic!("Required fn but got `None`"),
 
-            RuleFn::PrefixNumber => self.number(),
-            RuleFn::PrefixGrouping => self.grouping(),
-            RuleFn::PrefixUnary => self.unary(),
-            RuleFn::PrefixLiteral => self.literal(),
+            // prefix
+            RuleFn::Number => self.number(),
+            RuleFn::Grouping => self.grouping(),
+            RuleFn::Unary => self.unary(),
+            RuleFn::Literal => self.literal(),
+            RuleFn::String => self.string(),
 
-            RuleFn::InfixBinary => self.binary(),
-            RuleFn::InfixTernary => self.ternary(),
+            // infix
+            RuleFn::Binary => self.binary(),
+            RuleFn::Ternary => self.ternary(),
         }
     }
 
@@ -115,6 +118,12 @@ impl<'tokens> Compiler<'tokens> {
             TokenKind::None => self.emit_byte(OpCodes::None),
             _ => (),
         }
+    }
+
+    fn string(&mut self) {
+        let token = self.previous();
+        let literal = token.lexeme.replace("\"", "");
+        self.emit_constant(Literal::String(literal))
     }
 
     fn grouping(&mut self) {

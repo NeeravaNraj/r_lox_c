@@ -12,13 +12,16 @@ pub const POSTFIX_MASK: u16 = 0xF000;
 pub enum RuleFn {
     None,
 
-    PrefixNumber,
-    PrefixLiteral,
-    PrefixGrouping,
-    PrefixUnary,
+    // prefix
+    Number,
+    Literal,
+    String,
+    Grouping,
+    Unary,
 
-    InfixBinary,
-    InfixTernary,
+    // infix
+    Binary,
+    Ternary,
 }
 
 impl From<u16> for RuleFn {
@@ -26,13 +29,14 @@ impl From<u16> for RuleFn {
         match value {
             0 => Self::None,
 
-            _ if 0x10 == value => Self::PrefixNumber,
-            _ if 0x20 == value => Self::PrefixLiteral,
-            _ if 0x30 == value => Self::PrefixGrouping,
-            _ if 0x40 == value => Self::PrefixUnary,
+            _ if 0x10 == value => Self::Number,
+            _ if 0x20 == value => Self::Literal,
+            _ if 0x30 == value => Self::Grouping,
+            _ if 0x40 == value => Self::Unary,
+            _ if 0x50 == value => Self::String,
 
-            _ if 0x100 == value => Self::InfixBinary,
-            _ if 0x200 == value => Self::InfixTernary,
+            _ if 0x100 == value => Self::Binary,
+            _ if 0x200 == value => Self::Ternary,
 
             _ => panic!("Cannot convert {value} to rule."),
         }
@@ -44,13 +48,14 @@ impl From<RuleFn> for u16 {
         match value {
             RuleFn::None => 0,
 
-            RuleFn::PrefixNumber => 0x10,
-            RuleFn::PrefixLiteral => 0x20,
-            RuleFn::PrefixGrouping => 0x30,
-            RuleFn::PrefixUnary => 0x40,
+            RuleFn::Number => 0x10,
+            RuleFn::Literal => 0x20,
+            RuleFn::Grouping => 0x30,
+            RuleFn::Unary => 0x40,
+            RuleFn::String => 0x50,
 
-            RuleFn::InfixBinary => 0x100,
-            RuleFn::InfixTernary => 0x200,
+            RuleFn::Binary => 0x100,
+            RuleFn::Ternary => 0x200,
         }
     }
 }
@@ -66,24 +71,25 @@ impl ParseRule {
          * 4 - binary
          * */
         match kind {
-            TokenKind::LeftParen => Precedence::None as u16 | u16::from(RuleFn::PrefixGrouping),
-            TokenKind::Minus => Precedence::Term as u16 | u16::from(RuleFn::InfixBinary) | u16::from(RuleFn::PrefixUnary),
-            TokenKind::Plus => Precedence::Term as u16 | u16::from(RuleFn::InfixBinary),
-            TokenKind::Slash => Precedence::Factor as u16 | u16::from(RuleFn::InfixBinary),
-            TokenKind::Star => Precedence::Factor as u16 | u16::from(RuleFn::InfixBinary),
-            TokenKind::Int => Precedence::None as u16 | u16::from(RuleFn::PrefixNumber),
-            TokenKind::Float => Precedence::None as u16 | u16::from(RuleFn::PrefixNumber),
-            TokenKind::None => Precedence::None as u16 | u16::from(RuleFn::PrefixLiteral),
-            TokenKind::True => Precedence::None as u16 | u16::from(RuleFn::PrefixLiteral),
-            TokenKind::False => Precedence::None as u16 | u16::from(RuleFn::PrefixLiteral),
-            TokenKind::Bang => Precedence::None as u16 | u16::from(RuleFn::PrefixUnary),
-            TokenKind::BangEqual => Precedence::Equality as u16 | u16::from(RuleFn::InfixBinary),
-            TokenKind::Equals => Precedence::Equality as u16 | u16::from(RuleFn::InfixBinary),
-            TokenKind::Greater => Precedence::Comparison as u16 | u16::from(RuleFn::InfixBinary),
-            TokenKind::GreaterEqual => Precedence::Comparison as u16 | u16::from(RuleFn::InfixBinary),
-            TokenKind::Less => Precedence::Comparison as u16 | u16::from(RuleFn::InfixBinary),
-            TokenKind::LessEqual => Precedence::Comparison as u16 | u16::from(RuleFn::InfixBinary),
-            TokenKind::QuestionMark => Precedence::Ternary as u16 | u16::from(RuleFn::InfixTernary),
+            TokenKind::LeftParen => Precedence::None as u16 | u16::from(RuleFn::Grouping),
+            TokenKind::Minus => Precedence::Term as u16 | u16::from(RuleFn::Binary) | u16::from(RuleFn::Unary),
+            TokenKind::Plus => Precedence::Term as u16 | u16::from(RuleFn::Binary),
+            TokenKind::Slash => Precedence::Factor as u16 | u16::from(RuleFn::Binary),
+            TokenKind::Star => Precedence::Factor as u16 | u16::from(RuleFn::Binary),
+            TokenKind::Int => Precedence::None as u16 | u16::from(RuleFn::Number),
+            TokenKind::Float => Precedence::None as u16 | u16::from(RuleFn::Number),
+            TokenKind::None => Precedence::None as u16 | u16::from(RuleFn::Literal),
+            TokenKind::True => Precedence::None as u16 | u16::from(RuleFn::Literal),
+            TokenKind::False => Precedence::None as u16 | u16::from(RuleFn::Literal),
+            TokenKind::Bang => Precedence::None as u16 | u16::from(RuleFn::Unary),
+            TokenKind::BangEqual => Precedence::Equality as u16 | u16::from(RuleFn::Binary),
+            TokenKind::Equals => Precedence::Equality as u16 | u16::from(RuleFn::Binary),
+            TokenKind::Greater => Precedence::Comparison as u16 | u16::from(RuleFn::Binary),
+            TokenKind::GreaterEqual => Precedence::Comparison as u16 | u16::from(RuleFn::Binary),
+            TokenKind::Less => Precedence::Comparison as u16 | u16::from(RuleFn::Binary),
+            TokenKind::LessEqual => Precedence::Comparison as u16 | u16::from(RuleFn::Binary),
+            TokenKind::QuestionMark => Precedence::Ternary as u16 | u16::from(RuleFn::Ternary),
+            TokenKind::String => Precedence::None as u16 | u16::from(RuleFn::String),
             _ => Precedence::None as u16,
         }
     }

@@ -53,13 +53,13 @@ impl Vm {
             let instruction: OpCodes = chunk.code[self.ip].into();
             match instruction {
                 OpCodes::Return => {
-                    if let Some(c) = self.stack.pop() {
-                        println!("{c}");
+                    if let Some(literal) = self.stack.pop() {
+                        println!("{literal}");
                     }
                     return InterpretResult::Ok;
                 }
                 OpCodes::Constant(index) => {
-                    let constant = chunk.constants[index];
+                    let constant = chunk.constants[index].clone();
                     self.stack.push(constant);
                 }
                 OpCodes::Negate => {

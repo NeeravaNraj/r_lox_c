@@ -1,12 +1,13 @@
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     None,
     Float(f64),
     Int(isize),
     Bool(bool),
+    String(String),
 }
 
 impl Display for Literal {
@@ -15,6 +16,7 @@ impl Display for Literal {
             Self::Float(v) => write!(f, "{v}"),
             Self::Int(v) => write!(f, "{v}"),
             Self::Bool(v) => write!(f, "{v}"),
+            Self::String(v) => write!(f, "{v}"),
             Self::None => write!(f, "none"),
         }
     }
@@ -34,6 +36,7 @@ impl Literal {
             Self::Float(_) => "float",
             Self::Int(_) => "int",
             Self::Bool(_) => "bool",
+            Self::String(_) => "string",
             Self::None => "none",
         }
         .to_string()
@@ -53,6 +56,7 @@ impl Literal {
             Self::Float(v) => Self::Bool(v == 0.),
             Self::None => Self::Bool(true),
             Self::Bool(v) => Self::Bool(!v),
+            Self::String(v) => Self::Bool(v.len() == 0),
         }
     }
 
@@ -66,6 +70,7 @@ impl Literal {
             (Self::Bool(_), Self::Int(_)) |
             (Self::Int(_), Self::Bool(_)) |
             (Self::None, Self::None) |
+            (Self::String(_), Self::String(_)) |
             (Self::None, _) |
             (_, Self::None) => return Ok(()),
             _ => Err(format!(
@@ -84,6 +89,7 @@ impl Literal {
             (Self::Int(_), Self::Float(_)) |
             (Self::Bool(_), Self::Bool(_)) |
             (Self::Bool(_), Self::Int(_)) |
+            (Self::String(_), Self::String(_)) |
             (Self::Int(_), Self::Bool(_)) => return Ok(()),
             _ => Err(format!(
                 "Cannot compare types {} and {}",
@@ -98,11 +104,12 @@ impl Add for Literal {
     type Output = Result<Self, String>;
 
     fn add(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
+        match (&self, &rhs) {
             (Self::Int(a), Self::Int(b)) => Ok(Self::Int(a + b)),
             (Self::Float(a), Self::Float(b)) => Ok(Self::Float(a + b)),
-            (Self::Float(a), Self::Int(b)) => Ok(Self::Float(a + b as f64)),
-            (Self::Int(a), Self::Float(b)) => Ok(Self::Float(a as f64 + b)),
+            (Self::Float(a), Self::Int(b)) => Ok(Self::Float(a + *b as f64)),
+            (Self::Int(a), Self::Float(b)) => Ok(Self::Float(*a as f64 + b)),
+            (Self::String(a), Self::String(b)) => Ok(Self::String(a.to_owned() + b)),
             _ => Err(format!(
                 "Cannot add types {} and {}",
                 self.type_name(),
@@ -116,11 +123,11 @@ impl Sub for Literal {
     type Output = Result<Self, String>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
+        match (&self, &rhs) {
             (Self::Int(a), Self::Int(b)) => Ok(Self::Int(a - b)),
             (Self::Float(a), Self::Float(b)) => Ok(Self::Float(a - b)),
-            (Self::Float(a), Self::Int(b)) => Ok(Self::Float(a - b as f64)),
-            (Self::Int(a), Self::Float(b)) => Ok(Self::Float(a as f64 - b)),
+            (Self::Float(a), Self::Int(b)) => Ok(Self::Float(a - *b as f64)),
+            (Self::Int(a), Self::Float(b)) => Ok(Self::Float(*a as f64 - b)),
             _ => Err(format!(
                 "Cannot subtract types {} and {}",
                 self.type_name(),
@@ -134,11 +141,12 @@ impl Mul for Literal {
     type Output = Result<Self, String>;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
+        match (&self, &rhs) {
             (Self::Int(a), Self::Int(b)) => Ok(Self::Int(a * b)),
             (Self::Float(a), Self::Float(b)) => Ok(Self::Float(a * b)),
-            (Self::Float(a), Self::Int(b)) => Ok(Self::Float(a * b as f64)),
-            (Self::Int(a), Self::Float(b)) => Ok(Self::Float(a as f64 * b)),
+            (Self::Float(a), Self::Int(b)) => Ok(Self::Float(a * *b as f64)),
+            (Self::Int(a), Self::Float(b)) => Ok(Self::Float(*a as f64 * b)),
+            (Self::String(a), Self::Int(b)) => Ok(Self::String(a.repeat(*b as usize))),
             _ => Err(format!(
                 "Cannot multiply types {} and {}",
                 self.type_name(),
@@ -152,11 +160,11 @@ impl Div for Literal {
     type Output = Result<Self, String>;
 
     fn div(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
+        match (&self, &rhs) {
             (Self::Int(a), Self::Int(b)) => Ok(Self::Int(a / b)),
             (Self::Float(a), Self::Float(b)) => Ok(Self::Float(a / b)),
-            (Self::Float(a), Self::Int(b)) => Ok(Self::Float(a / b as f64)),
-            (Self::Int(a), Self::Float(b)) => Ok(Self::Float(a as f64 / b)),
+            (Self::Float(a), Self::Int(b)) => Ok(Self::Float(a / *b as f64)),
+            (Self::Int(a), Self::Float(b)) => Ok(Self::Float(*a as f64 / b)),
             _ => Err(format!(
                 "Cannot multiply types {} and {}",
                 self.type_name(),
@@ -176,6 +184,7 @@ impl PartialEq for Literal {
             (Self::Bool(a), Self::Bool(b)) => a == b,
             (Self::Bool(a), Self::Int(b)) => *a as isize == *b,
             (Self::Int(a), Self::Bool(b)) => *a == *b as isize,
+            (Self::String(a), Self::String(b)) => a.eq(b),
             (Self::None, Self::None) => true,
             _ => false,
         }
@@ -192,6 +201,7 @@ impl PartialOrd for Literal {
             (Self::Bool(a), Self::Bool(b)) => a < b,
             (Self::Bool(a), Self::Int(b)) => (*a as isize) < *b,
             (Self::Int(a), Self::Bool(b)) => *a < *b as isize,
+            (Self::String(a), Self::String(b)) => a.len() < b.len(),
             _ => false,
         }
     }
@@ -205,6 +215,7 @@ impl PartialOrd for Literal {
             (Self::Bool(a), Self::Bool(b)) => a <= b,
             (Self::Bool(a), Self::Int(b)) => (*a as isize) <= *b,
             (Self::Int(a), Self::Bool(b)) => *a <= *b as isize,
+            (Self::String(a), Self::String(b)) => a.len() <= b.len(),
             _ => false,
         }
     }
@@ -217,6 +228,7 @@ impl PartialOrd for Literal {
             (Self::Int(a), Self::Float(b)) => (*a as f64) > *b,
             (Self::Bool(a), Self::Bool(b)) => a > b,
             (Self::Bool(a), Self::Int(b)) => (*a as isize) > *b,
+            (Self::String(a), Self::String(b)) => a.len() > b.len(),
             (Self::Int(a), Self::Bool(b)) => *a > *b as isize,
             _ => false,
         }
@@ -231,6 +243,7 @@ impl PartialOrd for Literal {
             (Self::Bool(a), Self::Bool(b)) => a >= b,
             (Self::Bool(a), Self::Int(b)) => (*a as isize) >= *b,
             (Self::Int(a), Self::Bool(b)) => *a >= *b as isize,
+            (Self::String(a), Self::String(b)) => a.len() >= b.len(),
             _ => false,
         }
     }
@@ -243,7 +256,8 @@ impl PartialOrd for Literal {
             (Self::Int(_), Self::Float(_)) |
             (Self::Bool(_), Self::Bool(_)) |
             (Self::Bool(_), Self::Int(_)) |
-            (Self::Int(_), Self::Bool(_))  => {
+            (Self::Int(_), Self::Bool(_)) |
+            (Self::String(_), Self::String(_)) => {
                 if self < other {
                     return Some(std::cmp::Ordering::Less);
                 } else if self == other {
