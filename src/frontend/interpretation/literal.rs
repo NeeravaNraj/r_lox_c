@@ -65,7 +65,9 @@ impl Literal {
             (Self::Bool(_), Self::Bool(_)) |
             (Self::Bool(_), Self::Int(_)) |
             (Self::Int(_), Self::Bool(_)) |
-            (Self::None, Self::None) => return Ok(()),
+            (Self::None, Self::None) |
+            (Self::None, _) |
+            (_, Self::None) => return Ok(()),
             _ => Err(format!(
                 "Cannot equate types {} and {}",
                 self.type_name(),

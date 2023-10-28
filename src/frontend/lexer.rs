@@ -166,7 +166,7 @@ impl Lexer {
                         }
                     } else if self.peek_next() == Some('*') {
                         // self.block_comment()?;
-                    }
+                    } else { break }
                 }
                 _ => break,
             };
@@ -267,6 +267,7 @@ impl Lexer {
         }
 
         self.current += 1;
+        self.location.end += 1;
         true
     }
 

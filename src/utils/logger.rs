@@ -116,9 +116,9 @@ impl Log {
 
     fn print(level: Level, value: String) {
         if level.is_error() {
-            eprintln!("{value}")
+            eprintln!("{value}");
         } else {
-            println!("{value}")
+            println!("{value}");
         }
         print!("\x1B[0m"); // reset
     }

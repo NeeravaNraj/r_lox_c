@@ -28,8 +28,8 @@ impl<'tokens> Compiler<'tokens> {
     }
 
     pub fn compile<'chunk>(&'chunk mut self) -> CompilerResult<'chunk> {
-        self.expression();
-        self.consume(TokenKind::EOF, "expected end of expression.");
+        let _ = self.expression();
+        let _ = self.consume(TokenKind::EOF, "expected end of expression.");
         self.end();
         if self.had_error {
             return Err(());
@@ -51,7 +51,12 @@ impl<'tokens> Compiler<'tokens> {
         }
     }
 
-    fn parse_precedence(&mut self, precedence: Precedence) {
+    fn parse_precedence(&mut self, precedence: Precedence) -> Result<(), ()> {
+        // expect caller to handle the error
+        if self.is_next_end() {
+            self.error_occured();
+            return Err(());
+        }
         self.advance();
         let kind = self.previous().kind;
         let prefix_rule = self.get_rule(kind);
@@ -62,7 +67,7 @@ impl<'tokens> Compiler<'tokens> {
                 self.error_occured();
                 let token = self.previous();
                 error_at!(&token.span, "expected expression");
-                return;
+                return Ok(()); // returning `Err` is not required because error is being handled
             }
             _ => self.rule_fn(prefix_rule),
         }
@@ -80,6 +85,7 @@ impl<'tokens> Compiler<'tokens> {
                 break;
             }
         }
+        Ok(())
     }
 
     fn get_rule(&self, kind: TokenKind) -> Rule {
@@ -112,14 +118,27 @@ impl<'tokens> Compiler<'tokens> {
     }
 
     fn grouping(&mut self) {
-        self.expression();
-        self.consume(TokenKind::RightParen, "expected ')' after expression");
+        let left_paren = self.previous();
+        let Ok(()) = self.expression() else {
+            error_at!(&left_paren.span, "expected expression after '{}'", left_paren.lexeme);
+            return;
+        };
+        let token = self.current();
+        if token.kind == TokenKind::RightParen {
+            self.advance();
+            return;
+        }
+        error_at!(&left_paren.span, "expected ')' after expression");
+        self.error_occured();
     }
 
     fn unary(&mut self) {
         let token = self.previous();
         let kind = token.kind;
-        self.parse_precedence(Precedence::Unary);
+        let Ok(()) = self.parse_precedence(Precedence::Unary) else {
+            error_at!(&token.span, "expected expression after `{}`", token.lexeme);
+            return;
+        };
 
         match kind {
             TokenKind::Minus => self.emit_byte(OpCodes::Negate),
@@ -132,7 +151,10 @@ impl<'tokens> Compiler<'tokens> {
         let operator = self.previous();
         let kind = operator.kind;
         let rule = self.get_rule(kind);
-        self.parse_precedence(ParseRule::get_precedence(rule));
+        let Ok(()) = self.parse_precedence(ParseRule::get_precedence(rule)) else {
+            error_at!(&operator.span, "expected expression after '{}'", operator.lexeme);
+            return;
+        };
 
         match kind {
             TokenKind::Minus => self.emit_byte(OpCodes::Subtract),
@@ -150,14 +172,27 @@ impl<'tokens> Compiler<'tokens> {
     }
 
     fn ternary(&mut self) {
-        self.expression();
-        self.consume(TokenKind::Colon, "expected `:` after expression");
-        self.expression();
+        let Ok(()) = self.expression() else {
+            let token = self.previous();
+            error_at!(&token.span, "expected expression after `{}`", token.lexeme);
+            return;
+        };
+
+        let Ok(()) = self.consume(TokenKind::Colon, "expected `:` after expression") else {
+            return;
+        };
+
+        let Ok(()) = self.expression() else {
+            let token = self.previous();
+            error_at!(&token.span, "expected expression after `{}`", token.lexeme);
+            return;
+        };
         self.emit_byte(OpCodes::Ternary);
     }
 
-    fn expression(&mut self) {
-        self.parse_precedence(Precedence::Assignment);
+    fn expression(&mut self) -> Result<(), ()> {
+        self.parse_precedence(Precedence::Assignment)?;
+        Ok(())
     }
 
     fn emit_constant(&mut self, constant: Literal) {
@@ -182,14 +217,15 @@ impl<'tokens> Compiler<'tokens> {
         self.current >= self.tokens.len()
     }
 
-    fn consume(&mut self, kind: TokenKind, message: &str) {
+    fn consume(&mut self, kind: TokenKind, message: &str) -> Result<(), ()> {
         let token = self.current();
         if token.kind == kind {
             self.advance();
-            return;
+            return Ok(());
         }
         error_at!(&token.span, "{message}");
         self.error_occured();
+        Err(())
     }
 
     fn end(&mut self) {
@@ -206,5 +242,18 @@ impl<'tokens> Compiler<'tokens> {
 
     fn error_occured(&mut self) {
         self.had_error = true;
+    }
+
+    fn is_next_end(&self) -> bool {
+        self.current + 1 == self.tokens.len()
+    }
+
+    fn is_next_end_error(&mut self, token: &Token, message: String) -> Result<(), ()> {
+        if self.is_next_end() {
+            self.error_occured();
+            error_at!(&token.span, "{}", message);
+            return Err(());
+        }
+        Ok(())
     }
 }
