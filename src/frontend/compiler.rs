@@ -84,12 +84,15 @@ impl<'tokens> Compiler<'tokens> {
             return Err(());
         };
 
-        Ok(self.current - 1)
+        Ok(self.identifier_constant(self.previous()))
+    }
+
+    fn identifier_constant(&mut self, token: &Token) -> usize {
+        self.chunk.add_constant_manual(Literal::Variable(token.lexeme.clone()))
     }
 
     fn define_var(&mut self, index: usize) {
-        let token = self.tokens.get(index).expect("could not get var token");
-        self.emit_byte(OpCodes::Global(token.lexeme.as_str().into()));
+        self.emit_byte(OpCodes::SetGlobal(index));
     }
 
     fn print_statement(&mut self) {
@@ -155,6 +158,7 @@ impl<'tokens> Compiler<'tokens> {
             RuleFn::Unary => self.unary(),
             RuleFn::Literal => self.literal(),
             RuleFn::String => self.string(),
+            RuleFn::Variable => self.variable(),
 
             // infix
             RuleFn::Binary => self.binary(),
@@ -201,6 +205,15 @@ impl<'tokens> Compiler<'tokens> {
 
     fn get_rule(&self, kind: TokenKind) -> Rule {
         ParseRule::rules(kind)
+    }
+
+    fn variable(&mut self) {
+        self.named_var(self.previous());
+    }
+
+    fn named_var(&mut self, token: &Token) {
+        let index = self.identifier_constant(token);
+        self.emit_byte(OpCodes::GetGlobal(index));
     }
 
     fn number(&mut self) {

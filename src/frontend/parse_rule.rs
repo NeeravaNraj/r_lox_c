@@ -18,6 +18,7 @@ pub enum RuleFn {
     String,
     Grouping,
     Unary,
+    Variable,
 
     // infix
     Binary,
@@ -34,6 +35,7 @@ impl From<u16> for RuleFn {
             _ if 0x30 == value => Self::Grouping,
             _ if 0x40 == value => Self::Unary,
             _ if 0x50 == value => Self::String,
+            _ if 0x60 == value => Self::Variable,
 
             _ if 0x100 == value => Self::Binary,
             _ if 0x200 == value => Self::Ternary,
@@ -53,6 +55,7 @@ impl From<RuleFn> for u16 {
             RuleFn::Grouping => 0x30,
             RuleFn::Unary => 0x40,
             RuleFn::String => 0x50,
+            RuleFn::Variable => 0x60,
 
             RuleFn::Binary => 0x100,
             RuleFn::Ternary => 0x200,
@@ -90,6 +93,7 @@ impl ParseRule {
             TokenKind::LessEqual => Precedence::Comparison as u16 | u16::from(RuleFn::Binary),
             TokenKind::QuestionMark => Precedence::Ternary as u16 | u16::from(RuleFn::Ternary),
             TokenKind::String => Precedence::None as u16 | u16::from(RuleFn::String),
+            TokenKind::Identifier => Precedence::None as u16 | u16::from(RuleFn::Variable),
             _ => Precedence::None as u16,
         }
     }

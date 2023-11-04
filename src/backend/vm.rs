@@ -176,12 +176,33 @@ impl Vm {
                     self.stack.pop();
                 }
 
-                OpCodes::Global(name) => {
+                OpCodes::SetGlobal(index) => {
                     let Some(value) = self.peek(0) else {
+                        self.try_error_line("could not get variable value", chunk);
                         return InterpretResult::RuntimeError;
                     };
-                    self.globals.insert(name.to_string(), value.clone());
+
+                    let Some(Literal::Variable(name))= chunk.constants.get(*index) else {
+                        self.try_error_line("could not get variable name", chunk);
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    self.globals.insert(name.clone(), value.clone());
                     self.stack.pop();
+                }
+
+                OpCodes::GetGlobal(index) => {
+                    let Some(Literal::Variable(name))= chunk.constants.get(*index) else {
+                        self.try_error_line("could not get variable name", chunk);
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let Some(value) = self.globals.get(name) else {
+                        self.try_error_line(format!("undefined variable '{}'", name).as_str(), chunk);
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    self.stack.push(value.clone());
                 }
             }
             self.bump();

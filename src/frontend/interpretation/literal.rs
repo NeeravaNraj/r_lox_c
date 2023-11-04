@@ -8,6 +8,7 @@ pub enum Literal {
     Int(isize),
     Bool(bool),
     String(String),
+    Variable(String),
 }
 
 impl Display for Literal {
@@ -17,6 +18,7 @@ impl Display for Literal {
             Self::Int(v) => write!(f, "{v}"),
             Self::Bool(v) => write!(f, "{v}"),
             Self::String(v) => write!(f, "{v}"),
+            Self::Variable(v) => write!(f, "{v}"),
             Self::None => write!(f, "none"),
         }
     }
@@ -37,6 +39,7 @@ impl Literal {
             Self::Int(_) => "int",
             Self::Bool(_) => "bool",
             Self::String(_) => "string",
+            Self::Variable(_) => "identifier",
             Self::None => "none",
         }
         .to_string()
@@ -57,6 +60,7 @@ impl Literal {
             Self::None => Self::Bool(true),
             Self::Bool(v) => Self::Bool(!v),
             Self::String(v) => Self::Bool(v.len() == 0),
+            _ => self
         }
     }
 

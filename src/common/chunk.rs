@@ -52,6 +52,11 @@ impl Chunk {
         self.write(OpCodes::Constant(self.constants.len() - 1), line);
     }
 
+    pub fn add_constant_manual(&mut self, constant: Literal) -> usize {
+        self.constants.push(constant);
+        self.constants.len() - 1
+    }
+
     pub fn get_line(&self, index: usize) -> Option<&Line> {
         self.lines.iter().find(|&line| {
             if let Some(end) = line.end {

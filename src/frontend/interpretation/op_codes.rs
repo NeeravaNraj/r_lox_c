@@ -1,12 +1,12 @@
 use std::fmt::Display;
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum OpCodes {
     Return,
     //       index
     Constant(usize),
-    Global(Rc<str>),
+    SetGlobal(usize),
+    GetGlobal(usize),
     Negate,
     Add,
     Subtract,
@@ -32,7 +32,8 @@ impl Display for OpCodes {
         let val = match self {
             Self::Return => "OP_RETURN",
             Self::Constant(_) => "OP_CONSTANT",
-            Self::Global(_) => "OP_GLOBAL",
+            Self::SetGlobal(_) => "OP_GLOBAL_SET",
+            Self::GetGlobal(_) => "OP_GLOBAL_GET",
             Self::Negate => "OP_NEGATE",
             Self::Add => "OP_ADD",
             Self::Subtract => "OP_SUBTRACT",
