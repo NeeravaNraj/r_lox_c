@@ -5,8 +5,9 @@ pub enum OpCodes {
     Return,
     //       index
     Constant(usize),
-    SetGlobal(usize),
+    DefGlobal(usize),
     GetGlobal(usize),
+    SetGlobal(usize),
     Negate,
     Add,
     Subtract,
@@ -32,8 +33,9 @@ impl Display for OpCodes {
         let val = match self {
             Self::Return => "OP_RETURN",
             Self::Constant(_) => "OP_CONSTANT",
-            Self::SetGlobal(_) => "OP_GLOBAL_SET",
+            Self::DefGlobal(_) => "OP_GLOBAL_DEF",
             Self::GetGlobal(_) => "OP_GLOBAL_GET",
+            Self::SetGlobal(_) => "OP_GLOBAL_SET",
             Self::Negate => "OP_NEGATE",
             Self::Add => "OP_ADD",
             Self::Subtract => "OP_SUBTRACT",

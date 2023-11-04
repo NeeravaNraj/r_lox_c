@@ -57,6 +57,7 @@ impl Debugger {
 
         match instruction.into() {
             OpCodes::Constant(value) => self.constant_instruction(chunk, value, offset),
+            OpCodes::DefGlobal(value) => self.constant_instruction(chunk, value, offset),
             OpCodes::SetGlobal(value) => self.constant_instruction(chunk, value, offset),
             OpCodes::GetGlobal(value) => self.constant_instruction(chunk, value, offset),
             OpCodes::Return

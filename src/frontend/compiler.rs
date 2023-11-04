@@ -92,7 +92,7 @@ impl<'tokens> Compiler<'tokens> {
     }
 
     fn define_var(&mut self, index: usize) {
-        self.emit_byte(OpCodes::SetGlobal(index));
+        self.emit_byte(OpCodes::DefGlobal(index));
     }
 
     fn print_statement(&mut self) {
@@ -112,8 +112,6 @@ impl<'tokens> Compiler<'tokens> {
 
     fn expression_statement(&mut self) {
         let Ok(_) = self.expression() else {
-            let token = self.previous();
-            error_at!(&token.span, "expected expression after '{}'", token.lexeme);
             return;
         };
 
@@ -148,7 +146,7 @@ impl<'tokens> Compiler<'tokens> {
         }
     }
 
-    fn rule_fn(&mut self, f: RuleFn) {
+    fn rule_fn(&mut self, f: RuleFn, can_assign: bool) {
         match f {
             RuleFn::None => panic!("Required fn but got `None`"),
 
@@ -158,7 +156,7 @@ impl<'tokens> Compiler<'tokens> {
             RuleFn::Unary => self.unary(),
             RuleFn::Literal => self.literal(),
             RuleFn::String => self.string(),
-            RuleFn::Variable => self.variable(),
+            RuleFn::Variable => self.variable(can_assign),
 
             // infix
             RuleFn::Binary => self.binary(),
@@ -176,6 +174,7 @@ impl<'tokens> Compiler<'tokens> {
         let kind = self.previous().kind;
         let prefix_rule = self.get_rule(kind);
         let prefix_rule = ParseRule::get_prefix(prefix_rule);
+        let can_assign = precedence <= Precedence::Assignment;
 
         match prefix_rule {
             RuleFn::None => {
@@ -184,7 +183,7 @@ impl<'tokens> Compiler<'tokens> {
                 error_at!(&token.span, "expected expression");
                 return Ok(()); // returning `Err` is not required because error is being handled
             }
-            _ => self.rule_fn(prefix_rule),
+            _ => self.rule_fn(prefix_rule, can_assign),
         }
 
         while !self.is_at_end() {
@@ -195,10 +194,15 @@ impl<'tokens> Compiler<'tokens> {
                 self.advance();
                 let kind = self.previous().kind;
                 let infix_rule = ParseRule::get_infix(self.get_rule(kind));
-                self.rule_fn(infix_rule);
+                self.rule_fn(infix_rule, can_assign);
             } else {
                 break;
             }
+        }
+
+        if can_assign && self.is_match(TokenKind::Assign) {
+            error_at!(&self.previous().span, "invalid assignment target");
+            return Err(());
         }
         Ok(())
     }
@@ -207,13 +211,18 @@ impl<'tokens> Compiler<'tokens> {
         ParseRule::rules(kind)
     }
 
-    fn variable(&mut self) {
-        self.named_var(self.previous());
+    fn variable(&mut self, can_assign: bool) {
+        self.named_var(self.previous(), can_assign);
     }
 
-    fn named_var(&mut self, token: &Token) {
+    fn named_var(&mut self, token: &Token, can_assign: bool) {
         let index = self.identifier_constant(token);
-        self.emit_byte(OpCodes::GetGlobal(index));
+        if can_assign && self.is_match(TokenKind::Assign) {
+            let _ = self.expression();
+            self.emit_byte(OpCodes::SetGlobal(index));
+        } else {
+            self.emit_byte(OpCodes::GetGlobal(index));
+        }
     }
 
     fn number(&mut self) {
