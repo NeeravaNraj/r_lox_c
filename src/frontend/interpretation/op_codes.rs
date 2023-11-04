@@ -21,6 +21,8 @@ pub enum OpCodes {
     Less,
     LessEquals,
     Ternary,
+    Print,
+    Pop,
 }
 
 impl Display for OpCodes {
@@ -44,6 +46,8 @@ impl Display for OpCodes {
             Self::Less => "OP_LESS",
             Self::LessEquals => "OP_LESS_EQUAL",
             Self::Ternary => "OP_TERNARY",
+            Self::Print => "OP_PRINT",
+            Self::Pop => "OP_POP",
         };
         write!(f, "{val}")
     }

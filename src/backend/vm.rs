@@ -53,9 +53,6 @@ impl Vm {
             let instruction: OpCodes = chunk.code[self.ip].into();
             match instruction {
                 OpCodes::Return => {
-                    if let Some(literal) = self.stack.pop() {
-                        println!("{literal}");
-                    }
                     return InterpretResult::Ok;
                 }
                 OpCodes::Constant(index) => {
@@ -165,7 +162,17 @@ impl Vm {
                         return InterpretResult::RuntimeError;
                     };
                     self.stack.push(res)
+                }
+                OpCodes::Print => {
+                    if let Some(literal) = self.stack.pop() {
+                        println!("{}", literal);
+                    } else {
+                        self.try_error_line("no literal to print", chunk)
+                    }
+                }
 
+                OpCodes::Pop => {
+                    self.stack.pop();
                 }
             }
             self.bump();
@@ -236,7 +243,7 @@ impl Vm {
 
         if let Literal::Bool(v) = condition {
             if v {
-                return Ok(truthy)
+                return Ok(truthy);
             }
         }
         Ok(falsey)

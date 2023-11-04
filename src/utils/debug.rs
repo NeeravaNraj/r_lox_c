@@ -1,9 +1,6 @@
 use std::io::{stdout, Stdout, Write};
 
-use crate::{
-    common::chunk::Chunk,
-    frontend::interpretation::op_codes::OpCodes
-};
+use crate::{common::chunk::Chunk, frontend::interpretation::op_codes::OpCodes};
 
 pub struct Debugger {
     name: String,
@@ -60,23 +57,25 @@ impl Debugger {
 
         match instruction.into() {
             OpCodes::Constant(value) => self.constant_instruction(chunk, value, offset),
-            OpCodes::Return |
-            OpCodes::Negate |
-            OpCodes::Add |
-            OpCodes::Subtract |
-            OpCodes::Multiply |
-            OpCodes::Divide |
-            OpCodes::True |
-            OpCodes::False |
-            OpCodes::Not |
-            OpCodes::Less |
-            OpCodes::Greater |
-            OpCodes::LessEquals |
-            OpCodes::GreaterEquals |
-            OpCodes::NotEquals |
-            OpCodes::Equals |
-            OpCodes::Ternary |
-            OpCodes::None => self.simple_instruction(chunk, offset),
+            OpCodes::Return
+            | OpCodes::Negate
+            | OpCodes::Add
+            | OpCodes::Subtract
+            | OpCodes::Multiply
+            | OpCodes::Divide
+            | OpCodes::True
+            | OpCodes::False
+            | OpCodes::Not
+            | OpCodes::Less
+            | OpCodes::Greater
+            | OpCodes::LessEquals
+            | OpCodes::GreaterEquals
+            | OpCodes::NotEquals
+            | OpCodes::Equals
+            | OpCodes::Ternary
+            | OpCodes::Print
+            | OpCodes::Pop
+            | OpCodes::None => self.simple_instruction(chunk, offset),
         }
     }
 }

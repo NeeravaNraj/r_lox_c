@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{rc::Rc, process};
 
 use super::{
     interpretation::{literal::Literal, op_codes::OpCodes},
@@ -28,13 +28,81 @@ impl<'tokens> Compiler<'tokens> {
     }
 
     pub fn compile<'chunk>(&'chunk mut self) -> CompilerResult<'chunk> {
-        let _ = self.expression();
-        let _ = self.consume(TokenKind::EOF, "expected end of expression.");
+        while !self.is_match(TokenKind::EOF) {
+            self.declaration();
+        }
         self.end();
         if self.had_error {
             return Err(());
         }
         Ok(&self.chunk)
+    }
+
+    fn declaration(&mut self) {
+        self.statement();
+        if self.had_error {
+            self.synchronize()
+        }
+    }
+
+    fn statement(&mut self) {
+        let token = self.current();
+        match token.kind {
+            TokenKind::Print => self.print_statement(),
+            _ => self.expression_statement()
+        }
+    }
+
+    fn print_statement(&mut self) {
+        self.advance();
+        let Ok(_) = self.expression() else {
+            let token = self.previous();
+            error_at!(&token.span, "expected expression after '{}'", token.lexeme);
+            return;
+        };
+
+        let Ok(_) = self.consume(TokenKind::Semicolon, "expected ';' after expression") else {
+            return; 
+        };
+
+        self.emit_byte(OpCodes::Print)
+    }
+
+    fn expression_statement(&mut self) {
+        let Ok(_) = self.expression() else {
+            let token = self.previous();
+            error_at!(&token.span, "expected expression after '{}'", token.lexeme);
+            return;
+        };
+
+        let Ok(_) = self.consume(TokenKind::Semicolon, "expected ';' after expression") else {
+            return; 
+        };
+
+        self.emit_byte(OpCodes::Pop)
+    }
+
+    fn synchronize(&mut self) {
+        while self.current().kind != TokenKind::EOF {
+            if self.previous().kind == TokenKind::Semicolon {
+                return;
+            }
+
+            match self.current().kind {
+                TokenKind::Class |
+                TokenKind::DefFn |
+                TokenKind::Let |
+                TokenKind::For |
+                TokenKind::While |
+                TokenKind::If |
+                TokenKind::Else |
+                TokenKind::Elif |
+                TokenKind::Print |
+                TokenKind::Return => break,
+                _ => ()
+            };
+            self.advance();
+        }
     }
 
     fn rule_fn(&mut self, f: RuleFn) {
@@ -264,5 +332,19 @@ impl<'tokens> Compiler<'tokens> {
             return Err(());
         }
         Ok(())
+    }
+
+    #[inline]
+    fn check(&self, kind: TokenKind) -> bool {
+        self.current().kind == kind
+    }
+
+    #[inline]
+    fn is_match(&mut self, kind: TokenKind) -> bool {
+        if !self.check(kind) {
+            return false;
+        }
+        self.advance();
+        true
     }
 }

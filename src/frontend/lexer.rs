@@ -330,6 +330,7 @@ impl Lexer {
             "return" => Some(TokenKind::Return),
             "or" => Some(TokenKind::Or),
             "and" => Some(TokenKind::And),
+            "print" => Some(TokenKind::Print),
             _ => None,
         }
     }
