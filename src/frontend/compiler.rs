@@ -14,6 +14,7 @@ pub struct Compiler<'tokens> {
     chunk: Chunk,
     current: usize,
     had_error: bool,
+    panic_mode: bool,
 }
 
 impl<'tokens> Compiler<'tokens> {
@@ -23,6 +24,7 @@ impl<'tokens> Compiler<'tokens> {
             chunk: Chunk::new(),
             file_path,
             had_error: false,
+            panic_mode: false,
             current: 0,
         }
     }
@@ -39,8 +41,12 @@ impl<'tokens> Compiler<'tokens> {
     }
 
     fn declaration(&mut self) {
-        self.statement();
-        if self.had_error {
+        if self.is_match(TokenKind::Let) {
+            self.var_decl();
+        } else {
+            self.statement();
+        }
+        if self.panic_mode {
             self.synchronize()
         }
     }
@@ -51,6 +57,39 @@ impl<'tokens> Compiler<'tokens> {
             TokenKind::Print => self.print_statement(),
             _ => self.expression_statement()
         }
+    }
+
+    fn var_decl(&mut self) {
+        let Ok(global) = self.parse_var("expected variable name") else {
+            return;
+        };
+
+        if self.is_match(TokenKind::Assign) {
+            let _ = self.expression();
+        } else {
+            self.emit_byte(OpCodes::None);
+        }
+
+        let Ok(_) = self.consume(
+            TokenKind::Semicolon, "expected ';' after expression"
+        ) else {
+            return; 
+        };
+
+        self.define_var(global);
+    }
+
+    fn parse_var(&mut self, error_msg: &str) -> Result<usize, ()> {
+        let Ok(_) = self.consume(TokenKind::Identifier, error_msg) else {
+            return Err(());
+        };
+
+        Ok(self.current - 1)
+    }
+
+    fn define_var(&mut self, index: usize) {
+        let token = self.tokens.get(index).expect("could not get var token");
+        self.emit_byte(OpCodes::Global(token.lexeme.as_str().into()));
     }
 
     fn print_statement(&mut self) {
@@ -83,6 +122,7 @@ impl<'tokens> Compiler<'tokens> {
     }
 
     fn synchronize(&mut self) {
+        self.panic_mode = false;
         while self.current().kind != TokenKind::EOF {
             if self.previous().kind == TokenKind::Semicolon {
                 return;
@@ -272,6 +312,7 @@ impl<'tokens> Compiler<'tokens> {
         Ok(())
     }
 
+    // makeConstant
     fn emit_constant(&mut self, constant: Literal) {
         self.chunk
             .add_constant(constant, self.current().span.location.line)
@@ -319,6 +360,7 @@ impl<'tokens> Compiler<'tokens> {
 
     fn error_occured(&mut self) {
         self.had_error = true;
+        self.panic_mode = true;
     }
 
     fn is_next_end(&self) -> bool {

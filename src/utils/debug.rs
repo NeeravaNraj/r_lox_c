@@ -44,7 +44,7 @@ impl Debugger {
     }
 
     pub fn disassemble_instruction(&mut self, chunk: &Chunk, offset: usize) -> usize {
-        let instruction = chunk.code[offset];
+        let instruction = chunk.code[offset].clone();
         write!(self.stdout, "{:04} ", offset).unwrap();
 
         if offset > 0 && chunk.check_previous(offset) {
@@ -75,6 +75,7 @@ impl Debugger {
             | OpCodes::Ternary
             | OpCodes::Print
             | OpCodes::Pop
+            | OpCodes::Global(_)
             | OpCodes::None => self.simple_instruction(chunk, offset),
         }
     }

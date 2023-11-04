@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     common::chunk::Chunk,
@@ -16,6 +16,7 @@ use crate::{
 pub struct Vm {
     debugger: Debugger,
     stack: Vec<Literal>,
+    globals: HashMap<String, Literal>,
     ip: usize,
     options: Options,
 }
@@ -26,6 +27,7 @@ impl Vm {
             ip: 0,
             debugger: Debugger::new("debug_vm"),
             stack: Vec::new(),
+            globals: HashMap::new(),
             options,
         }
     }
@@ -50,13 +52,13 @@ impl Vm {
                 self.print_stack_slots();
                 self.debugger.disassemble_instruction(chunk, self.ip);
             }
-            let instruction: OpCodes = chunk.code[self.ip].into();
+            let instruction = &chunk.code[self.ip];
             match instruction {
                 OpCodes::Return => {
                     return InterpretResult::Ok;
                 }
                 OpCodes::Constant(index) => {
-                    let constant = chunk.constants[index].clone();
+                    let constant = chunk.constants[*index].clone();
                     self.stack.push(constant);
                 }
                 OpCodes::Negate => {
@@ -170,8 +172,15 @@ impl Vm {
                         self.try_error_line("no literal to print", chunk)
                     }
                 }
-
                 OpCodes::Pop => {
+                    self.stack.pop();
+                }
+
+                OpCodes::Global(name) => {
+                    let Some(value) = self.peek(0) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.globals.insert(name.to_string(), value.clone());
                     self.stack.pop();
                 }
             }
