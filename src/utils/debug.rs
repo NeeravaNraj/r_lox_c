@@ -24,26 +24,27 @@ impl Debugger {
         )
         .unwrap();
 
-        let mut offset: usize = 0;
-        while offset < chunk.code.len() {
-            offset = self.disassemble_instruction(chunk, offset)
+        for i in 0..chunk.code.len() {
+            self.disassemble_instruction(chunk, i);
         }
 
         self.stdout.flush().unwrap();
     }
 
-    fn constant_instruction(&mut self, chunk: &Chunk, value: usize, offset: usize) -> usize {
+    fn constant_instruction(&mut self, chunk: &Chunk, value: usize, offset: usize) {
         write!(self.stdout, "{:-16} {offset:4} '", chunk.code[offset]).unwrap();
         writeln!(self.stdout, "{}", chunk.constants[value]).unwrap();
-        offset + 1
     }
 
-    fn simple_instruction(&mut self, chunk: &Chunk, offset: usize) -> usize {
+    fn byte_instruction(&mut self, chunk: &Chunk, slot: usize, offset: usize) {
+        writeln!(self.stdout, "{:-16} {slot:4}", chunk.code[offset]).unwrap();
+    }
+
+    fn simple_instruction(&mut self, chunk: &Chunk, offset: usize) {
         writeln!(self.stdout, "{}", chunk.code[offset]).unwrap();
-        offset + 1
     }
 
-    pub fn disassemble_instruction(&mut self, chunk: &Chunk, offset: usize) -> usize {
+    pub fn disassemble_instruction(&mut self, chunk: &Chunk, offset: usize) {
         let instruction = chunk.code[offset].clone();
         write!(self.stdout, "{:04} ", offset).unwrap();
 
@@ -60,6 +61,8 @@ impl Debugger {
             OpCodes::DefGlobal(value) => self.constant_instruction(chunk, value, offset),
             OpCodes::SetGlobal(value) => self.constant_instruction(chunk, value, offset),
             OpCodes::GetGlobal(value) => self.constant_instruction(chunk, value, offset),
+            OpCodes::SetLocal(value) => self.byte_instruction(chunk, value, offset),
+            OpCodes::GetLocal(value) => self.byte_instruction(chunk, value, offset),
             OpCodes::Return
             | OpCodes::Negate
             | OpCodes::Add

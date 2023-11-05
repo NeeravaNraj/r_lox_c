@@ -1,15 +1,19 @@
-use std::{rc::Rc, process};
+use std::{cell::RefCell, rc::Rc};
 
 use super::{
     interpretation::{literal::Literal, op_codes::OpCodes},
+    locals::Local,
     parse_rule::{ParseRule, Rule, RuleFn},
     precedence::Precedence,
-    tokenization::{token::Token, tokenkind::TokenKind},
+    tokenization::{location::Location, span::Span, token::Token, tokenkind::TokenKind},
 };
 use crate::{common::chunk::Chunk, error_at, prelude::CompilerResult};
 
 pub struct Compiler<'tokens> {
     file_path: Rc<str>,
+    source_map: Rc<RefCell<Vec<Span>>>,
+    locals: Vec<Local<'tokens>>,
+    depth: usize,
     tokens: &'tokens [Token],
     chunk: Chunk,
     current: usize,
@@ -18,48 +22,77 @@ pub struct Compiler<'tokens> {
 }
 
 impl<'tokens> Compiler<'tokens> {
-    pub fn new(file_path: Rc<str>, tokens: &'tokens Vec<Token>) -> Self {
+    pub fn new(
+        file_path: Rc<str>,
+        tokens: &'tokens Vec<Token>,
+        source_map: Rc<RefCell<Vec<Span>>>,
+    ) -> Self {
         Self {
-            tokens,
-            chunk: Chunk::new(),
             file_path,
+            tokens,
+            source_map,
+            locals: Vec::new(),
+            chunk: Chunk::new(),
             had_error: false,
             panic_mode: false,
+            depth: 0,
             current: 0,
         }
     }
 
     pub fn compile<'chunk>(&'chunk mut self) -> CompilerResult<'chunk> {
         while !self.is_match(TokenKind::EOF) {
-            self.declaration();
+            self.statement();
         }
         self.end();
+
         if self.had_error {
             return Err(());
         }
         Ok(&self.chunk)
     }
 
-    fn declaration(&mut self) {
-        if self.is_match(TokenKind::Let) {
-            self.var_decl();
-        } else {
-            self.statement();
-        }
-        if self.panic_mode {
-            self.synchronize()
-        }
-    }
-
     fn statement(&mut self) {
         let token = self.current();
         match token.kind {
             TokenKind::Print => self.print_statement(),
-            _ => self.expression_statement()
+            TokenKind::Let => self.var_decl(),
+            TokenKind::LeftBrace => self.block(),
+            _ => self.expression_statement(),
+        };
+
+        if self.panic_mode {
+            self.synchronize();
+        }
+    }
+
+    fn block(&mut self) {
+        self.advance();
+        self.begin_scope();
+        while !self.check(TokenKind::RightBrace) && !self.check(TokenKind::EOF) {
+            self.statement();
+        }
+        let Ok(_) = self.consume(TokenKind::RightBrace, "expected '}' after block") else {
+            return;
+        };
+        self.end_scope();
+    }
+
+    fn begin_scope(&mut self) {
+        self.depth += 1
+    }
+
+    fn end_scope(&mut self) {
+        self.depth -= 1;
+
+        while self.locals.len() > 0 && self.locals[self.locals.len() - 1].depth > self.depth {
+            self.emit_byte(OpCodes::Pop);
+            self.locals.pop();
         }
     }
 
     fn var_decl(&mut self) {
+        self.advance();
         let Ok(global) = self.parse_var("expected variable name") else {
             return;
         };
@@ -70,13 +103,36 @@ impl<'tokens> Compiler<'tokens> {
             self.emit_byte(OpCodes::None);
         }
 
-        let Ok(_) = self.consume(
-            TokenKind::Semicolon, "expected ';' after expression"
-        ) else {
-            return; 
+        let Ok(_) = self.consume(TokenKind::Semicolon, "expected ';' after expression") else {
+            return;
         };
 
         self.define_var(global);
+    }
+
+    fn declare_local(&mut self) {
+        if self.depth == 0 {
+            return;
+        }
+
+        let name = self.previous();
+
+        for local in self.locals.iter().rev() {
+            if local.depth < self.depth {
+                break;
+            }
+
+            if name.lexeme == local.name.lexeme {
+                self.error(format!("cannot redefine variable '{}'", name.lexeme).as_str());
+                return;
+            }
+        }
+
+        self.add_local(name)
+    }
+
+    fn add_local(&mut self, token: &'tokens Token) {
+        self.locals.push(Local::new(token, self.depth))
     }
 
     fn parse_var(&mut self, error_msg: &str) -> Result<usize, ()> {
@@ -84,15 +140,32 @@ impl<'tokens> Compiler<'tokens> {
             return Err(());
         };
 
+        self.declare_local();
+        if self.depth > 0 {
+            return Ok(0);
+        }
+
         Ok(self.identifier_constant(self.previous()))
     }
 
     fn identifier_constant(&mut self, token: &Token) -> usize {
-        self.chunk.add_constant_manual(Literal::Variable(token.lexeme.clone()))
+        self.chunk
+            .add_constant_manual(Literal::Variable(token.lexeme.clone()))
     }
 
     fn define_var(&mut self, index: usize) {
+        if self.depth > 0 {
+            self.mark_initialized();
+            return;
+        }
         self.emit_byte(OpCodes::DefGlobal(index));
+    }
+
+    fn mark_initialized(&mut self) {
+        self.locals
+            .last_mut()
+            .expect("could not unwrap last")
+            .initialized = true;
     }
 
     fn print_statement(&mut self) {
@@ -104,7 +177,7 @@ impl<'tokens> Compiler<'tokens> {
         };
 
         let Ok(_) = self.consume(TokenKind::Semicolon, "expected ';' after expression") else {
-            return; 
+            return;
         };
 
         self.emit_byte(OpCodes::Print)
@@ -116,7 +189,7 @@ impl<'tokens> Compiler<'tokens> {
         };
 
         let Ok(_) = self.consume(TokenKind::Semicolon, "expected ';' after expression") else {
-            return; 
+            return;
         };
 
         self.emit_byte(OpCodes::Pop)
@@ -130,17 +203,17 @@ impl<'tokens> Compiler<'tokens> {
             }
 
             match self.current().kind {
-                TokenKind::Class |
-                TokenKind::DefFn |
-                TokenKind::Let |
-                TokenKind::For |
-                TokenKind::While |
-                TokenKind::If |
-                TokenKind::Else |
-                TokenKind::Elif |
-                TokenKind::Print |
-                TokenKind::Return => break,
-                _ => ()
+                TokenKind::Class
+                | TokenKind::DefFn
+                | TokenKind::Let
+                | TokenKind::For
+                | TokenKind::While
+                | TokenKind::If
+                | TokenKind::Else
+                | TokenKind::Elif
+                | TokenKind::Print
+                | TokenKind::Return => break,
+                _ => (),
             };
             self.advance();
         }
@@ -215,13 +288,33 @@ impl<'tokens> Compiler<'tokens> {
         self.named_var(self.previous(), can_assign);
     }
 
+    fn resolve_local(&mut self, token: &Token) -> Option<usize> {
+        for (i, local) in self.locals.iter().rev().enumerate() {
+            if local.name.lexeme == token.lexeme {
+                if !local.initialized {
+                    self.error("cannot read local variable in its own initializer");
+                }
+                return Some(self.locals.len() - i - 1);
+            }
+        }
+        None
+    }
+
     fn named_var(&mut self, token: &Token, can_assign: bool) {
         let index = self.identifier_constant(token);
+        let mut get_op = OpCodes::GetGlobal(index);
+        let mut set_op = OpCodes::SetGlobal(index);
+
+        if let Some(local_index) = self.resolve_local(token) {
+            get_op = OpCodes::GetLocal(local_index);
+            set_op = OpCodes::SetLocal(local_index);
+        }
+
         if can_assign && self.is_match(TokenKind::Assign) {
             let _ = self.expression();
-            self.emit_byte(OpCodes::SetGlobal(index));
+            self.emit_byte(set_op);
         } else {
-            self.emit_byte(OpCodes::GetGlobal(index));
+            self.emit_byte(get_op);
         }
     }
 
@@ -252,14 +345,19 @@ impl<'tokens> Compiler<'tokens> {
 
     fn string(&mut self) {
         let token = self.previous();
-        let literal = token.lexeme.replace("\"", "");
+        let len = token.lexeme.len() - 1;
+        let literal = token.lexeme[1..len].chars().collect();
         self.emit_constant(Literal::String(literal))
     }
 
     fn grouping(&mut self) {
         let left_paren = self.previous();
         let Ok(()) = self.expression() else {
-            error_at!(&left_paren.span, "expected expression after '{}'", left_paren.lexeme);
+            error_at!(
+                &left_paren.span,
+                "expected expression after '{}'",
+                left_paren.lexeme
+            );
             return;
         };
         let token = self.current();
@@ -291,7 +389,11 @@ impl<'tokens> Compiler<'tokens> {
         let kind = operator.kind;
         let rule = self.get_rule(kind);
         let Ok(()) = self.parse_precedence(ParseRule::get_precedence(rule)) else {
-            error_at!(&operator.span, "expected expression after '{}'", operator.lexeme);
+            error_at!(
+                &operator.span,
+                "expected expression after '{}'",
+                operator.lexeme
+            );
             return;
         };
 
@@ -330,8 +432,19 @@ impl<'tokens> Compiler<'tokens> {
     }
 
     fn expression(&mut self) -> Result<(), ()> {
+        let line = self.current().span.location.line;
+        let start = self.current().span.location.start;
         self.parse_precedence(Precedence::Assignment)?;
+        let end = self.current().span.location.end - 1; // ignore semicolon
+        self.map_source(line, start, end);
         Ok(())
+    }
+
+    fn map_source(&self, line: u32, start: usize, end: usize) {
+        self.source_map.borrow_mut().push(Span::new(
+            self.file_path.clone(),
+            Location::new(line, start, end),
+        ));
     }
 
     // makeConstant
@@ -366,6 +479,12 @@ impl<'tokens> Compiler<'tokens> {
         error_at!(&token.span, "{message}");
         self.error_occured();
         Err(())
+    }
+
+    fn error(&mut self, msg: &str) {
+        let token = self.previous();
+        self.error_occured();
+        error_at!(&token.span, "{msg}");
     }
 
     fn end(&mut self) {

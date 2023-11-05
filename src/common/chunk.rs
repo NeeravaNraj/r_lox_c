@@ -29,19 +29,19 @@ impl Chunk {
             if line > index.line {
                 self.lines.push(Line {
                     line,
-                    start: self.lines.len(),
+                    start: self.code.len() - 1,
                     end: None,
                 })
             }
             let new_len = self.lines.len();
 
             if let Some(prev) = self.lines.get_mut(new_len - 1) {
-                prev.end = Some(self.code.len());
+                prev.end = Some(self.code.len() - 1);
             }
         } else {
             self.lines.push(Line {
                 line,
-                start: self.lines.len(),
+                start: self.code.len() - 1,
                 end: None,
             })
         }
