@@ -33,6 +33,17 @@ impl Literal {
         }
     }
 
+    pub fn truthy(&self) -> bool {
+        match self {
+            Self::Float(v) => *v != 0.,
+            Self::Int(v) => *v != 0,
+            Self::Bool(v) => *v,
+            Self::String(v) => v.len() > 0,
+            Self::None => false,
+            _ => unreachable!("variable ?")
+        }
+    }
+
     pub fn type_name(&self) -> String {
         match self {
             Self::Float(_) => "float",

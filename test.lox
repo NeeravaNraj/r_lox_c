@@ -1,1 +1,7 @@
-print -'abc';
+if 1 > 2 { 
+    print "hello";
+} elif 1 == 2 {
+    print "greater";
+} else {
+    print "else";
+}

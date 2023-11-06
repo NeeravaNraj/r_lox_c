@@ -10,6 +10,8 @@ pub enum OpCodes {
     SetGlobal(usize),
     SetLocal(usize),
     GetLocal(usize),
+    JumpFalse(usize),
+    Jump(usize),
     Negate,
     Add,
     Subtract,
@@ -30,6 +32,16 @@ pub enum OpCodes {
     Pop,
 }
 
+impl OpCodes {
+    pub fn patch_jump(&self, offset: usize) -> Self {
+        match self {
+            Self::JumpFalse(_) => Self::JumpFalse(offset),
+            Self::Jump(_) => Self::Jump(offset),
+            _ => unreachable!("bad"),
+        }
+    }
+}
+
 impl Display for OpCodes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let val = match self {
@@ -40,6 +52,8 @@ impl Display for OpCodes {
             Self::SetGlobal(_) => "OP_GLOBAL_SET",
             Self::GetLocal(_) => "OP_LOCAL_GET",
             Self::SetLocal(_) => "OP_LOCAL_SET",
+            Self::JumpFalse(_) => "OP_JUMP_FALSE",
+            Self::Jump(_) => "OP_JUMP",
             Self::Negate => "OP_NEGATE",
             Self::Add => "OP_ADD",
             Self::Subtract => "OP_SUBTRACT",

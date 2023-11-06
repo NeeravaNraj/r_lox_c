@@ -58,12 +58,34 @@ impl<'tokens> Compiler<'tokens> {
             TokenKind::Print => self.print_statement(),
             TokenKind::Let => self.var_decl(),
             TokenKind::LeftBrace => self.block(),
+            TokenKind::If => self.if_statement(),
             _ => self.expression_statement(),
         };
 
         if self.panic_mode {
             self.synchronize();
         }
+    }
+
+    fn if_statement(&mut self) {
+        self.advance();
+        let Ok(_) = self.expression() else {
+            return;
+        };
+
+        let offset = self.emit_jump(OpCodes::JumpFalse(69));
+        self.statement();
+        let else_offset = self.emit_jump(OpCodes::Jump(42069));
+        self.patch_jump(offset);
+
+        if self.current().kind == TokenKind::Elif {
+            self.if_statement();
+        }
+
+        if self.is_match(TokenKind::Else) {
+            self.statement();
+        }
+        self.patch_jump(else_offset);
     }
 
     fn block(&mut self) {
@@ -435,7 +457,7 @@ impl<'tokens> Compiler<'tokens> {
         let line = self.current().span.location.line;
         let start = self.current().span.location.start;
         self.parse_precedence(Precedence::Assignment)?;
-        let end = self.current().span.location.end - 1; // ignore semicolon
+        let end = self.previous().span.location.end; // ignore semicolon
         self.map_source(line, start, end);
         Ok(())
     }
@@ -457,13 +479,35 @@ impl<'tokens> Compiler<'tokens> {
         self.chunk.write(code, self.previous().span.location.line)
     }
 
-    fn emit_bytes(&mut self, a: OpCodes, b: OpCodes) {
-        self.chunk.write(a, self.previous().span.location.line);
-        self.chunk.write(b, self.previous().span.location.line);
+    fn emit_jump(&mut self, code: OpCodes) -> usize {
+        self.emit_byte(code);
+        self.chunk.code.len() - 1
+    }
+
+    fn patch_jump(&mut self, offset: usize) {
+        let index = self.chunk.code.len() - offset - 1;
+        self.chunk.code[offset] = self
+            .chunk
+            .code
+            .get(offset)
+            .expect("no jump 2")
+            .patch_jump(index);
     }
 
     fn advance(&mut self) {
         self.current += 1;
+    }
+
+    fn peek_match(&self, kind: TokenKind) -> bool {
+        if self.current + 1 >= self.tokens.len() {
+            return false;
+        }
+
+        if self.tokens[self.current + 1].kind == kind {
+            return true;
+        }
+
+        return false;
     }
 
     fn is_at_end(&self) -> bool {

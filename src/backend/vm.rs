@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     common::chunk::Chunk,
-    error, error_line,
+    error, error_at, error_line,
     frontend::{
         compiler::Compiler,
         interpretation::{interpret_result::InterpretResult, literal::Literal, op_codes::OpCodes},
@@ -10,7 +10,7 @@ use crate::{
         tokenization::{location::Location, span::Span},
     },
     parse_args::Options,
-    utils::debug::Debugger, error_at,
+    utils::debug::Debugger,
 };
 
 pub struct Vm {
@@ -226,6 +226,20 @@ impl Vm {
                         self.try_error_line("could not find value", chunk);
                         return InterpretResult::RuntimeError;
                     }
+                }
+
+                OpCodes::JumpFalse(offset) => {
+                    let Some(literal) = self.peek(0) else {
+                        panic!("not literal");
+                    };
+
+                    if !literal.truthy() {
+                        self.ip += offset;
+                    }
+                }
+
+                OpCodes::Jump(offset) => {
+                    self.ip += offset;
                 }
             }
             self.bump();

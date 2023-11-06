@@ -63,6 +63,8 @@ impl Debugger {
             OpCodes::GetGlobal(value) => self.constant_instruction(chunk, value, offset),
             OpCodes::SetLocal(value) => self.byte_instruction(chunk, value, offset),
             OpCodes::GetLocal(value) => self.byte_instruction(chunk, value, offset),
+            OpCodes::JumpFalse(value) => self.byte_instruction(chunk, value, offset),
+            OpCodes::Jump(value) => self.byte_instruction(chunk, value, offset),
             OpCodes::Return
             | OpCodes::Negate
             | OpCodes::Add
