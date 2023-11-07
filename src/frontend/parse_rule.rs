@@ -23,6 +23,8 @@ pub enum RuleFn {
     // infix
     Binary,
     Ternary,
+    And,
+    Or
 }
 
 impl From<u16> for RuleFn {
@@ -39,6 +41,8 @@ impl From<u16> for RuleFn {
 
             _ if 0x100 == value => Self::Binary,
             _ if 0x200 == value => Self::Ternary,
+            _ if 0x300 == value => Self::And,
+            _ if 0x400 == value => Self::Or,
 
             _ => panic!("Cannot convert {value} to rule."),
         }
@@ -59,6 +63,8 @@ impl From<RuleFn> for u16 {
 
             RuleFn::Binary => 0x100,
             RuleFn::Ternary => 0x200,
+            RuleFn::And => 0x300,
+            RuleFn::Or => 0x400,
         }
     }
 }
@@ -94,6 +100,8 @@ impl ParseRule {
             TokenKind::QuestionMark => Precedence::Ternary as u16 | u16::from(RuleFn::Ternary),
             TokenKind::String => Precedence::None as u16 | u16::from(RuleFn::String),
             TokenKind::Identifier => Precedence::None as u16 | u16::from(RuleFn::Variable),
+            TokenKind::And => Precedence::And as u16 | u16::from(RuleFn::And),
+            TokenKind::Or => Precedence::Or as u16 | u16::from(RuleFn::Or),
             _ => Precedence::None as u16,
         }
     }

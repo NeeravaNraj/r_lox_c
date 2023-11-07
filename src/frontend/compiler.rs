@@ -59,12 +59,29 @@ impl<'tokens> Compiler<'tokens> {
             TokenKind::Let => self.var_decl(),
             TokenKind::LeftBrace => self.block(),
             TokenKind::If => self.if_statement(),
+            TokenKind::While => self.while_statement(),
             _ => self.expression_statement(),
         };
 
         if self.panic_mode {
             self.synchronize();
         }
+    }
+
+    fn while_statement(&mut self) {
+        self.advance();
+        let loop_start = self.chunk.code.len();
+        let Ok(_) = self.expression() else {
+            return;
+        };
+
+        let exit = self.emit_jump(OpCodes::JumpFalse(0));
+        self.emit_byte(OpCodes::Pop);
+        self.statement();
+        self.emit_loop(loop_start);
+
+        self.patch_jump(exit);
+        self.emit_byte(OpCodes::Pop);
     }
 
     fn if_statement(&mut self) {
@@ -256,6 +273,8 @@ impl<'tokens> Compiler<'tokens> {
             // infix
             RuleFn::Binary => self.binary(),
             RuleFn::Ternary => self.ternary(),
+            RuleFn::And => self.and(),
+            RuleFn::Or => self.or(),
         }
     }
 
@@ -300,6 +319,32 @@ impl<'tokens> Compiler<'tokens> {
             return Err(());
         }
         Ok(())
+    }
+
+    fn and(&mut self) {
+        let end_jump = self.emit_jump(OpCodes::JumpFalse(0));
+
+        self.emit_byte(OpCodes::Pop);
+        let Ok(_) = self.parse_precedence(Precedence::And) else {
+            self.error(format!("expected expression after '{}'", self.previous().lexeme).as_str());
+            return;
+        };
+
+        self.patch_jump(end_jump);
+    }
+
+    fn or(&mut self) {
+        let else_jump = self.emit_jump(OpCodes::JumpFalse(0));
+        let end_jump = self.emit_jump(OpCodes::Jump(0));
+
+        self.patch_jump(else_jump);
+        self.emit_byte(OpCodes::Pop);
+        let Ok(_) = self.parse_precedence(Precedence::Or) else {
+            self.error(format!("expected expression after '{}'", self.previous().lexeme).as_str());
+            return;
+        };
+
+        self.patch_jump(end_jump);
     }
 
     fn get_rule(&self, kind: TokenKind) -> Rule {
@@ -492,6 +537,11 @@ impl<'tokens> Compiler<'tokens> {
             .get(offset)
             .expect("no jump 2")
             .patch_jump(index);
+    }
+
+    fn emit_loop(&mut self, start: usize) {
+        let offset = self.chunk.code.len() - start + 1;
+        self.emit_byte(OpCodes::Loop(offset));
     }
 
     fn advance(&mut self) {

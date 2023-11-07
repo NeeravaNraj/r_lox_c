@@ -241,6 +241,10 @@ impl Vm {
                 OpCodes::Jump(offset) => {
                     self.ip += offset;
                 }
+
+                OpCodes::Loop(offset) => {
+                    self.ip -= offset;
+                }
             }
             self.bump();
         }

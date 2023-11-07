@@ -130,6 +130,23 @@ impl Lexer {
                     return Ok(self.make_token(TokenKind::Slash));
                 }
             }
+            '&' => {
+                if self.is_match('&') {
+                    return Ok(self.make_token(TokenKind::And));
+                } else {
+                    return Ok(self.make_token(TokenKind::Ampersand));
+                }
+            }
+            '|' => {
+                if self.is_match('|') {
+                    return Ok(self.make_token(TokenKind::Or));
+                } else {
+                    return Ok(self.make_token(TokenKind::Bar));
+                }
+            }
+            '^' => {
+                return Ok(self.make_token(TokenKind::Caret));
+            }
             '"' | '\'' => return self.string(c),
 
             '0'..='9' => return self.number(),
@@ -328,8 +345,6 @@ impl Lexer {
             "lm" => Some(TokenKind::DefLambda),
             "none" => Some(TokenKind::None),
             "return" => Some(TokenKind::Return),
-            "or" => Some(TokenKind::Or),
-            "and" => Some(TokenKind::And),
             "print" => Some(TokenKind::Print),
             _ => None,
         }
