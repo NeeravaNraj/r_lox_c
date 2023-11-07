@@ -12,7 +12,7 @@ use crate::{common::chunk::Chunk, error_at, prelude::CompilerResult};
 struct LoopData {
     inside_loop: bool,
     start: usize,
-    end: usize,
+    breaks: Vec<usize>,
 }
 
 impl Default for LoopData {
@@ -20,7 +20,7 @@ impl Default for LoopData {
         Self {
             inside_loop: false,
             start: 0,
-            end: 0,
+            breaks: Vec::new(),
         }
     }
 }
@@ -80,6 +80,7 @@ impl<'tokens> Compiler<'tokens> {
             TokenKind::While => self.while_statement(),
             TokenKind::For => self.for_statement(),
             TokenKind::Continue => self.continue_statement(),
+            TokenKind::Break => self.break_statement(),
             _ => self.expression_statement(),
         };
 
@@ -100,6 +101,21 @@ impl<'tokens> Compiler<'tokens> {
         };
 
         self.emit_loop(self.loop_data.start);
+    }
+
+    fn break_statement(&mut self) {
+        self.advance();
+        if !self.loop_data.inside_loop {
+            self.error(&*format!("`break` is not allowed outside loop body"));
+            return;
+        }
+
+        let Ok(_) = self.consume(TokenKind::Semicolon, "expected `;` after break") else {
+            return;
+        };
+
+        let index = self.emit_jump(OpCodes::Jump(69));
+        self.loop_data.breaks.push(index);
     }
 
     fn for_statement(&mut self) {
@@ -147,7 +163,20 @@ impl<'tokens> Compiler<'tokens> {
         self.emit_loop(loop_start);
 
         self.patch_jump(exit);
+        self.resolve_breaks();
         self.emit_byte(OpCodes::Pop);
+    }
+
+    fn resolve_breaks(&mut self) {
+        for offset in self.loop_data.breaks.iter() {
+            let index = self.chunk.code.len() - *offset - 1;
+            self.chunk.code[*offset] = self
+                .chunk
+                .code
+                .get(*offset)
+                .expect("no jump 2")
+                .patch_jump(index);
+        }
     }
 
     fn if_statement(&mut self) {
