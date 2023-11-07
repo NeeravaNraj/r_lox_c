@@ -66,6 +66,7 @@ pub enum TokenKind {
     Continue,
     Static,
     Public,
+    In,
     Print, // Temporary
 
     EOF,

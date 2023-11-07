@@ -410,7 +410,7 @@ impl Vm {
     }
 
     fn try_error_line(&self, message: &str, chunk: &Chunk) {
-        if let Some(line) = chunk.get_line(self.ip - 1) {
+        if let Some(line) = chunk.get_line(self.ip) {
             if let Some(span) = self.get_source(line.line) {
                 error_at!(&span, "{}", message);
                 return;

@@ -346,6 +346,7 @@ impl Lexer {
             "none" => Some(TokenKind::None),
             "return" => Some(TokenKind::Return),
             "print" => Some(TokenKind::Print),
+            "in" => Some(TokenKind::In),
             _ => None,
         }
     }

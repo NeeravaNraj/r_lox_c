@@ -9,6 +9,22 @@ use super::{
 };
 use crate::{common::chunk::Chunk, error_at, prelude::CompilerResult};
 
+struct LoopData {
+    inside_loop: bool,
+    start: usize,
+    end: usize,
+}
+
+impl Default for LoopData {
+    fn default() -> Self {
+        Self {
+            inside_loop: false,
+            start: 0,
+            end: 0,
+        }
+    }
+}
+
 pub struct Compiler<'tokens> {
     file_path: Rc<str>,
     source_map: Rc<RefCell<Vec<Span>>>,
@@ -19,6 +35,7 @@ pub struct Compiler<'tokens> {
     current: usize,
     had_error: bool,
     panic_mode: bool,
+    loop_data: LoopData,
 }
 
 impl<'tokens> Compiler<'tokens> {
@@ -35,6 +52,7 @@ impl<'tokens> Compiler<'tokens> {
             chunk: Chunk::new(),
             had_error: false,
             panic_mode: false,
+            loop_data: LoopData::default(),
             depth: 0,
             current: 0,
         }
@@ -60,12 +78,58 @@ impl<'tokens> Compiler<'tokens> {
             TokenKind::LeftBrace => self.block(),
             TokenKind::If => self.if_statement(),
             TokenKind::While => self.while_statement(),
+            TokenKind::For => self.for_statement(),
+            TokenKind::Continue => self.continue_statement(),
             _ => self.expression_statement(),
         };
 
         if self.panic_mode {
             self.synchronize();
         }
+    }
+
+    fn continue_statement(&mut self) {
+        self.advance();
+        if !self.loop_data.inside_loop {
+            self.error(&*format!("`continue` is not allowed outside loop body"));
+            return;
+        }
+
+        let Ok(_) = self.consume(TokenKind::Semicolon, "expected `;` after continue") else {
+            return;
+        };
+
+        self.emit_loop(self.loop_data.start);
+    }
+
+    fn for_statement(&mut self) {
+        self.advance();
+        self.begin_scope();
+        let Ok(_) = self.consume(
+            TokenKind::Identifier,
+            format!("expected identifier after `{}`", self.previous().lexeme).as_str(),
+        ) else {
+            return;
+        };
+
+        let Ok(_) = self.consume(
+            TokenKind::In,
+            format!("expected `in` after `{}`", self.previous().lexeme).as_str(),
+        ) else {
+            return;
+        };
+        let loop_start = self.chunk.code.len();
+
+        let Ok(_) = self.expression() else {
+            self.error(format!("expected expresion after `{}`", self.previous().lexeme).as_str());
+            return;
+        };
+
+        self.statement();
+
+        self.emit_loop(loop_start);
+        self.end_scope();
+        todo!();
     }
 
     fn while_statement(&mut self) {
@@ -76,6 +140,8 @@ impl<'tokens> Compiler<'tokens> {
         };
 
         let exit = self.emit_jump(OpCodes::JumpFalse(0));
+        self.loop_data.inside_loop = true;
+        self.loop_data.start = exit;
         self.emit_byte(OpCodes::Pop);
         self.statement();
         self.emit_loop(loop_start);
@@ -575,7 +641,8 @@ impl<'tokens> Compiler<'tokens> {
         Err(())
     }
 
-    fn error(&mut self, msg: &str) {
+    fn error<'msg>(&mut self, msg: impl Into<&'msg str>) {
+        let msg: &str = msg.into();
         let token = self.previous();
         self.error_occured();
         error_at!(&token.span, "{msg}");
@@ -600,6 +667,10 @@ impl<'tokens> Compiler<'tokens> {
 
     fn is_next_end(&self) -> bool {
         self.current + 1 == self.tokens.len()
+    }
+
+    fn chunk_len(&self) -> usize {
+        self.chunk.code.len()
     }
 
     fn is_next_end_error(&mut self, token: &Token, message: String) -> Result<(), ()> {
