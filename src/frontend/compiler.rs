@@ -9,17 +9,30 @@ use super::{
 };
 use crate::{common::chunk::Chunk, error_at, prelude::CompilerResult};
 
+struct LoopLocation {
+    depth: usize,
+    location: usize,
+}
+
 struct LoopData {
     inside_loop: bool,
-    start: usize,
-    breaks: Vec<usize>,
+    depth: usize,
+    starts: Vec<LoopLocation>,
+    breaks: Vec<LoopLocation>,
+}
+
+impl LoopLocation {
+    fn new(depth: usize, location: usize) -> Self {
+        Self { depth, location }
+    }
 }
 
 impl Default for LoopData {
     fn default() -> Self {
         Self {
             inside_loop: false,
-            start: 0,
+            depth: 0,
+            starts: Vec::new(),
             breaks: Vec::new(),
         }
     }
@@ -100,7 +113,7 @@ impl<'tokens> Compiler<'tokens> {
             return;
         };
 
-        self.emit_loop(self.loop_data.start);
+        self.emit_loop(self.loop_data.starts[self.loop_data.depth - 1].location);
     }
 
     fn break_statement(&mut self) {
@@ -115,7 +128,9 @@ impl<'tokens> Compiler<'tokens> {
         };
 
         let index = self.emit_jump(OpCodes::Jump(69));
-        self.loop_data.breaks.push(index);
+        self.loop_data
+            .breaks
+            .push(LoopLocation::new(self.loop_data.depth, index));
     }
 
     fn for_statement(&mut self) {
@@ -156,26 +171,43 @@ impl<'tokens> Compiler<'tokens> {
         };
 
         let exit = self.emit_jump(OpCodes::JumpFalse(0));
-        self.loop_data.inside_loop = true;
-        self.loop_data.start = exit;
+        self.setup_loop(exit);
         self.emit_byte(OpCodes::Pop);
         self.statement();
         self.emit_loop(loop_start);
 
         self.patch_jump(exit);
-        self.resolve_breaks();
+        self.resolve_breaks(self.loop_data.depth);
         self.emit_byte(OpCodes::Pop);
+        self.cleanup_loop();
     }
 
-    fn resolve_breaks(&mut self) {
-        for offset in self.loop_data.breaks.iter() {
-            let index = self.chunk.code.len() - *offset - 1;
-            self.chunk.code[*offset] = self
-                .chunk
-                .code
-                .get(*offset)
-                .expect("no jump 2")
-                .patch_jump(index);
+    fn resolve_breaks(&mut self, loop_depth: usize) {
+        for loc in self.loop_data.breaks.iter() {
+            if loc.depth == loop_depth {
+                let index = self.chunk.code.len() - loc.location - 1;
+                self.chunk.code[loc.location] = self
+                    .chunk
+                    .code
+                    .get(loc.location)
+                    .expect("no break here")
+                    .patch_jump(index);
+            }
+        }
+    }
+
+    fn setup_loop(&mut self, start: usize) {
+        self.loop_data.inside_loop = true;
+        self.loop_data.depth += 1;
+        self.loop_data
+            .starts
+            .push(LoopLocation::new(self.loop_data.depth, start))
+    }
+
+    fn cleanup_loop(&mut self) {
+        self.loop_data.depth -= 1;
+        if self.loop_data.depth == 0 {
+            self.loop_data.inside_loop = false;
         }
     }
 
@@ -189,6 +221,7 @@ impl<'tokens> Compiler<'tokens> {
         self.statement();
         let else_offset = self.emit_jump(OpCodes::Jump(42069));
         self.patch_jump(offset);
+        self.emit_byte(OpCodes::Pop);
 
         if self.current().kind == TokenKind::Elif {
             self.if_statement();
@@ -439,6 +472,7 @@ impl<'tokens> Compiler<'tokens> {
             return;
         };
 
+        // self.emit_byte(OpCodes::Pop);
         self.patch_jump(end_jump);
     }
 
